@@ -1,3 +1,13 @@
+# Build folder
+/build/
+
+# VS Code settings
+.vscode/
+
+# OS files
+.DS_Store
+Thumbs.db
+
 # Prerequisites
 *.d
 
