@@ -1,6 +1,7 @@
 #include "Market.hpp"
 #include <cmath>
 #include <stdexcept>
+#include <iostream>
 
 namespace MercEx
 {
@@ -67,7 +68,7 @@ namespace MercEx
         }
         else if (order.type == OrderType::Market)
         {
-            throw std::runtime_error("Market order processing not implemented");
+            
         }
         else
         {
@@ -79,8 +80,6 @@ namespace MercEx
     {
         if (!validate_fulfillment(order, Side::Buy) && order.tif == TimeInForce::FOK)
             throw std::runtime_error("FOK order cannot be fulfilled");
-
-        std::vector<int> to_remove;
 
         for (auto price_it = sellbook.get_orders().begin(); price_it != sellbook.get_orders().end();)
         {
@@ -130,8 +129,6 @@ namespace MercEx
     {
         if (!validate_fulfillment(order, Side::Sell) && order.tif == TimeInForce::FOK)
             throw std::runtime_error("FOK order cannot be fulfilled");
-
-        std::vector<int> to_remove;
 
         for (auto price_it = buybook.get_orders().begin(); price_it != buybook.get_orders().end();)
         {
@@ -186,6 +183,26 @@ namespace MercEx
     BuyBook &Market::get_buybook() { return buybook; }
     SellBook &Market::get_sellbook() { return sellbook; }
 
+    void Market::print_order_books() const
+    {
+        std::cout << "Buy Orders:\n";
+        for (const auto &[price, orders] : buybook.get_orders())
+        {
+            for (const auto &order : orders)
+            {
+                std::cout << "Price: " << price << ", OrderID: " << order.id << ", Quantity: " << order.quantity << ", Remaining: " << order.remaining << "\n";
+            }
+        }
+
+        std::cout << "Sell Orders:\n";
+        for (const auto &[price, orders] : sellbook.get_orders())
+        {
+            for (const auto &order : orders)
+            {
+                std::cout << "Price: " << price << ", OrderID: " << order.id << ", Quantity: " << order.quantity << ", Remaining: " << order.remaining << "\n";
+            }
+        }
+    }
     std::optional<double> Market::get_last_price() const { return last_price; }
     void Market::update_last_price(double price) { last_price = price; }
 

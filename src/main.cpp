@@ -7,61 +7,49 @@
 #include "MatchingEngine.hpp"
 #include <cmath>
 
-int main() {
-    using namespace MercEx;
+using namespace MercEx;
 
+int main() {
     try {
         MarketRegistry registry;
+        MatchingEngine engine(registry);
 
-        // Create market with tick size 0.01
-        Market& mkt = registry.create_market("AAPL", 0.01);
-        MatchingEngine mtche(registry);
-        // Seed the SELL book (resting asks)
-        Order ask1 = Order::make_limit_order(101, 2001, "AAPL", 70, 100.00, Side::Sell, TimeInForce::GTC); // 70 @ 100
-        Order ask2 = Order::make_limit_order(102, 2002, "AAPL", 50, 102.00, Side::Sell, TimeInForce::GTC); // 50 @ 102
-        mtche.match_order(ask1); // will rest on the book
-        mtche.match_order(ask2); // will rest on the book
-        registry.create_market("GOOG", 0.01);
-        registry.get_market("AAPL")->deactivate(); 
-        registry.get_market("AAPL")->activate(); // another market to show registry handling
-        std::cout << "\n== After seeding asks ==\n";
+        // Create a market
+        Market& market = registry.create_market("AAPL", 0.01);
+        std::cout << "Created market: " << market.get_symbol() << "\n";
+
+        // Place a SELL order (resting)
+        Order sell1 = Order::make_limit_order(1, 1001, "AAPL", 10, 150.0, Side::Sell, TimeInForce::GTC);
+        std::cout << "Placing sell order: " << to_string(sell1) << "\n";
+        engine.match_order(sell1);
+
+        // Place a BUY order that crosses -> should match fully
+        Order buy1 = Order::make_limit_order(2, 1002, "AAPL", 10, 151.0, Side::Buy, TimeInForce::GTC);
+        std::cout << "Placing buy order: " << to_string(buy1) << "\n";
+        engine.match_order(buy1);
+
         registry.print_markets();
 
-        // Cross the spread: BUY 60 @ 120 → should match 60 against 100.00
-        Order buy1 = Order::make_limit_order(201, 1001, "AAPL", 60, 120.00, Side::Buy, TimeInForce::GTC);
-        mtche.match_order(buy1); // will reduce resting asks
-        std::cout << "\nExecuted BUY 60 @ 120 (GTC). Remaining on order: " << buy1.remaining << "\n";
+        // Place another SELL order (will rest partially)
+        Order sell2 = Order::make_limit_order(3, 1003, "AAPL", 15, 152.0, Side::Sell, TimeInForce::GTC);
+        std::cout << "Placing sell order: " << to_string(sell2) << "\n";
+        engine.match_order(sell2);
+
+        // Place a BUY order smaller than sell2 -> partial fill
+        Order buy2 = Order::make_limit_order(4, 1004, "AAPL", 5, 152.0, Side::Buy, TimeInForce::GTC);
+        std::cout << "Placing buy order: " << to_string(buy2) << "\n";
+        engine.match_order(buy2);
+
         registry.print_markets();
 
-        // IOC example: BUY 80 @ 101 — will take whatever is available up to 101, remainder cancelled
-        Order buyIOC = Order::make_limit_order(202, 1002, "AAPL", 80, 101.00, Side::Buy, TimeInForce::IOC);
-        mtche.match_order(buyIOC);
-        std::cout << "\nExecuted BUY 80 @ 101 (IOC). Remaining (should be 0, leftover cancelled): "
-                  << buyIOC.remaining << "\n";
+        // Cancel the remaining sell2
+        bool cancelled = engine.cancel_order(sell2.id);
+        std::cout << "Cancel order " << sell2.id << (cancelled ? " succeeded" : " failed") << "\n";
+
         registry.print_markets();
-
-        // FOK example: require full fill; if not possible, reject
-        try {
-            Order buyFOK = Order::make_limit_order(203, 1003, "APL", 200, 103.00, Side::Buy, TimeInForce::FOK);
-            mtche.match_order(buyFOK); // will throw if not fully matchable
-            std::cout << "\nFOK filled fully. Remaining: " << buyFOK.remaining << "\n";
-        } catch (const std::exception& e) {
-            std::cout << "\nFOK rejected as expected: " << e.what() << "\n";
-        }
-
-        // Non-crossing resting bid: BUY 20 @ 95 (will rest on the bid side)
-        Order restingBid = Order::make_limit_order(204, 1004, "AAPL", 20, 95.00, Side::Buy, TimeInForce::GTC);
-        mtche.match_order(restingBid);
-        std::cout << "\nPlaced resting BUY 20 @ 95 (GTC). Remaining: " << restingBid.remaining << "\n";
-        registry.print_markets();
-
-        // Show a market order object creation (not processed since not implemented)
-        Order mktSell = Order::make_market_order(205, 1005, "AAPL", 10, Side::Sell, TimeInForce::Day);
-        std::cout << "\nCreated (but NOT processed) Market Sell 10 on AAPL:\n" << to_string(mktSell) << "\n";
 
     } catch (const std::exception& e) {
-        std::cerr << "Fatal error: " << e.what() << "\n";
-        return 1;
+        std::cerr << "Exception: " << e.what() << "\n";
     }
 
     return 0;

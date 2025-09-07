@@ -29,6 +29,8 @@ namespace MercEx
         BuyBook &get_buybook();
         SellBook &get_sellbook();
 
+        void print_order_books() const;
+
         std::optional<double> get_last_price() const;
         void update_last_price(double price);
 
