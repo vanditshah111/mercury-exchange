@@ -83,6 +83,10 @@ namespace MercEx
 
         for (auto price_it = sellbook.get_orders().begin(); price_it != sellbook.get_orders().end();)
         {
+
+            if(order.price < price_it->first)
+                break;
+
             auto &orders = price_it->second;
 
             for (auto it = orders.begin(); it != orders.end();)
@@ -132,6 +136,10 @@ namespace MercEx
 
         for (auto price_it = buybook.get_orders().begin(); price_it != buybook.get_orders().end();)
         {
+
+            if(order.price > price_it->first)
+                break;
+                
             auto &orders = price_it->second;
 
             for (auto it = orders.begin(); it != orders.end();)
