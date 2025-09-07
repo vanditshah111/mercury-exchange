@@ -60,15 +60,21 @@ namespace MercEx
                 throw std::invalid_argument("Invalid price for limit order");
 
             if (order.side == Side::Buy)
-                return process_buy_order(order);
+                return process_limit_buy_order(order);
             else if (order.side == Side::Sell)
-                return process_sell_order(order);
+                return process_limit_sell_order(order);
             else
                 throw std::invalid_argument("Invalid order side");
         }
         else if (order.type == OrderType::Market)
         {
-            
+            if (order.side == Side::Buy)
+                process_market_buy_order(order);
+            else if (order.side == Side::Sell)
+                process_market_sell_order(order);
+            else
+                throw std::invalid_argument("Invalid order side");
+            return std::nullopt;
         }
         else
         {
@@ -76,7 +82,7 @@ namespace MercEx
         }
     }
 
-    std::optional<std::list<Order>::iterator> Market::process_buy_order(Order &order)
+    std::optional<std::list<Order>::iterator> Market::process_limit_buy_order(Order &order)
     {
         if (!validate_fulfillment(order, Side::Buy) && order.tif == TimeInForce::FOK)
             throw std::runtime_error("FOK order cannot be fulfilled");
@@ -129,7 +135,7 @@ namespace MercEx
         return std::nullopt;
     }
 
-    std::optional<std::list<Order>::iterator> Market::process_sell_order(Order &order)
+    std::optional<std::list<Order>::iterator> Market::process_limit_sell_order(Order &order)
     {
         if (!validate_fulfillment(order, Side::Sell) && order.tif == TimeInForce::FOK)
             throw std::runtime_error("FOK order cannot be fulfilled");
@@ -139,7 +145,7 @@ namespace MercEx
 
             if(order.price > price_it->first)
                 break;
-                
+
             auto &orders = price_it->second;
 
             for (auto it = orders.begin(); it != orders.end();)
@@ -182,6 +188,55 @@ namespace MercEx
         return std::nullopt;
     }
 
+    bool Market::process_market_buy_order(Order &order)
+    {
+        if(order.price.has_value())
+            throw std::invalid_argument("Market order should not have a price");
+        
+        for (auto price_it = sellbook.get_orders().begin(); price_it != sellbook.get_orders().end();)
+        {
+
+            auto &orders = price_it->second;
+
+            for (auto it = orders.begin(); it != orders.end();)
+            {
+                if (order.remaining <= 0)
+                    break;
+
+                int trade_quantity = std::min(order.remaining, it->remaining);
+                order.remaining -= trade_quantity;
+                it->remaining -= trade_quantity;
+
+                if (it->remaining == 0)
+                {
+                    it = orders.erase(it);
+                }
+                else
+                {
+                    ++it;
+                }
+
+                update_last_price(price_it->first);
+            }
+
+            if (orders.empty())
+            {
+                price_it = sellbook.get_orders().erase(price_it);
+            }
+            else
+            {
+                ++price_it;
+            }
+
+            if (order.remaining <= 0)
+                break;
+        }
+
+        if (order.remaining > 0)
+            return false;
+
+        return true;
+    }
     const std::string &Market::get_symbol() const { return symbol; }
     double Market::get_price_tick() const { return price_tick; }
     bool Market::active() const { return is_active; }
