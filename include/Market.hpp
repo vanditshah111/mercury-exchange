@@ -19,7 +19,6 @@ namespace MercEx
         std::optional<std::list<Order>::iterator> process_limit_sell_order(Order &order);
         bool process_market_buy_order(Order &order);
         bool process_market_sell_order(Order &order);
-        void delete_order(Order &order);
 
         const std::string &get_symbol() const;
         double get_price_tick() const;

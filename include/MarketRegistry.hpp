@@ -5,19 +5,21 @@
 #include <stdexcept>
 #include <iostream>
 
-namespace MercEx {
+namespace MercEx
+{
 
-class MarketRegistry {
-public:
-    Market& create_market(const std::string& symbol, double price_tick);
+    class MarketRegistry
+    {
+    public:
+        Market &create_market(const std::string &symbol, double price_tick);
 
-    Market* get_market(const std::string& symbol);
+        Market *get_market(const std::string &symbol);
 
-    bool remove_market(const std::string& symbol);
+        bool remove_market(const std::string &symbol);
 
-    void print_markets() const;
+        void print_markets() const;
 
-private:
-    std::unordered_map<std::string, Market> markets;
-};
+    private:
+        std::unordered_map<std::string, Market> markets;
+    };
 }

@@ -12,16 +12,16 @@ namespace MercEx
         auto *market = registry.get_market(order.symbol);
         if (market)
         {
-            std::optional<std::list<Order>::iterator> it=market->process_order(order);
+            std::optional<std::list<Order>::iterator> it = market->process_order(order);
 
-            if(it!=std::nullopt)
+            if (it != std::nullopt)
             {
                 OrderLocator ol;
-                ol.it=*it;
-                ol.price=*order.price;
-                ol.side=order.side;
-                ol.symbol=order.symbol;
-                order_index[order.id]=ol;
+                ol.it = *it;
+                ol.price = *order.price;
+                ol.side = order.side;
+                ol.symbol = order.symbol;
+                order_index[order.id] = ol;
             }
         }
         else
@@ -45,13 +45,12 @@ namespace MercEx
 
         if (loc.side == Side::Buy)
         {
-            market->get_buybook().cancel_order(id, loc.price, loc.it);
+            return market->get_buybook().cancel_order(id, loc.price, loc.it);
         }
         else
         {
-            market->get_sellbook().cancel_order(id, loc.price, loc.it);
+            return market->get_sellbook().cancel_order(id, loc.price, loc.it);
         }
-        return true;
     }
 
 } // namespace MercEx

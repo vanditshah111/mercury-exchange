@@ -8,7 +8,6 @@ namespace MercEx
     class MatchingEngine
     {
     public:
-
         struct OrderLocator
         {
             std::string symbol;
