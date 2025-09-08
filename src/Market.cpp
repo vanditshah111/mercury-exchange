@@ -103,6 +103,7 @@ namespace MercEx
 
                 if (it->remaining == 0)
                 {
+                    it->status = OrderStatus::Filled;
                     it = orders.erase(it);
                 }
                 else
@@ -126,9 +127,11 @@ namespace MercEx
                 break;
         }
 
-        if (order.tif != TimeInForce::IOC && order.remaining > 0)
+        if (order.tif != TimeInForce::IOC && order.remaining > 0){
+            order.status = OrderStatus::PartiallyFilled;
             return buybook.add_order(order);
-
+        }
+        order.status = OrderStatus::Filled;
         return std::nullopt;
     }
 
@@ -156,6 +159,7 @@ namespace MercEx
 
                 if (it->remaining == 0)
                 {
+                    order.status = OrderStatus::Filled;
                     it = orders.erase(it);
                 }
                 else
@@ -180,8 +184,11 @@ namespace MercEx
         }
 
         if (order.tif != TimeInForce::IOC && order.remaining > 0)
+        {
+            order.status = OrderStatus::PartiallyFilled;
             return sellbook.add_order(order);
-
+        }
+        order.status = OrderStatus::Filled;
         return std::nullopt;
     }
 
@@ -206,6 +213,7 @@ namespace MercEx
 
                 if (it->remaining == 0)
                 {
+                    order.status = OrderStatus::Filled;
                     it = orders.erase(it);
                 }
                 else
@@ -229,9 +237,11 @@ namespace MercEx
                 break;
         }
 
-        if (order.remaining > 0)
+        if (order.remaining > 0){
+            order.status = OrderStatus::PartiallyFilled;
             return false;
-
+        }
+        order.status = OrderStatus::Filled;
         return true;
     }
 
@@ -256,6 +266,7 @@ namespace MercEx
 
                 if (it->remaining == 0)
                 {
+                    order.status = OrderStatus::Filled;
                     it = orders.erase(it);
                 }
                 else
@@ -279,9 +290,11 @@ namespace MercEx
                 break;
         }
 
-        if (order.remaining > 0)
+        if (order.remaining > 0){
+            order.status = OrderStatus::PartiallyFilled;
             return false;
-
+        }
+        order.status = OrderStatus::Filled;
         return true;
     }
 

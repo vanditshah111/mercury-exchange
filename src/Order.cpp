@@ -83,7 +83,8 @@ namespace MercEx
             << "Price: " << (order.price ? std::to_string(*order.price) : "N/A") << "\n"
             << "Side: " << to_string(order.side) << "\n"
             << "Type: " << to_string(order.type) << "\n"
-            << "Time In Force: " << to_string(order.tif) << "\n";
+            << "Time In Force: " << to_string(order.tif) << "\n"
+            << "Status: " << to_string(order.status) << "\n";
         return oss.str();
     }
 
