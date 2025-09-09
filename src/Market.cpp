@@ -1,4 +1,5 @@
 #include "Market.hpp"
+#include "Trade.hpp"
 #include <cmath>
 #include <stdexcept>
 #include <iostream>
@@ -46,7 +47,7 @@ namespace MercEx
         return total_matched_quantity >= order.quantity;
     }
 
-    std::optional<std::list<Order>::iterator> Market::process_order(Order &order)
+    ProcessResult Market::process_order(Order &order)
     {
         if (!is_active)
             throw std::runtime_error("Market is inactive");
@@ -66,12 +67,11 @@ namespace MercEx
         else if (order.type == OrderType::Market)
         {
             if (order.side == Side::Buy)
-                process_market_buy_order(order);
+                return process_market_buy_order(order);
             else if (order.side == Side::Sell)
-                process_market_sell_order(order);
+                return process_market_sell_order(order);
             else
                 throw std::invalid_argument("Invalid order side");
-            return std::nullopt;
         }
         else
         {
@@ -79,10 +79,12 @@ namespace MercEx
         }
     }
 
-    std::optional<std::list<Order>::iterator> Market::process_limit_buy_order(Order &order)
+    ProcessResult Market::process_limit_buy_order(Order &order)
     {
         if (!validate_fulfillment(order, Side::Buy) && order.tif == TimeInForce::FOK)
             throw std::runtime_error("FOK order cannot be fulfilled");
+
+        ProcessResult result;
 
         for (auto price_it = sellbook.get_orders().begin(); price_it != sellbook.get_orders().end();)
         {
@@ -101,17 +103,23 @@ namespace MercEx
                 order.remaining -= trade_quantity;
                 it->remaining -= trade_quantity;
 
+                update_last_price(price_it->first);
+
+                Trade trade(0, order.id, it->id, order.client_id, it->client_id, price_it->first, trade_quantity);
+                std::cout << trade.to_string() << std::endl;
+                result.trades.push_back(trade);
+
                 if (it->remaining == 0)
                 {
                     it->status = OrderStatus::Filled;
+                    result.removed_orders.push_back(it->id);
                     it = orders.erase(it);
                 }
                 else
                 {
-                    ++it;
+                    it->status = OrderStatus::PartiallyFilled;
+                    break;
                 }
-
-                update_last_price(price_it->first);
             }
 
             if (orders.empty())
@@ -127,19 +135,23 @@ namespace MercEx
                 break;
         }
 
-        if (order.tif != TimeInForce::IOC && order.remaining > 0){
+        if (order.tif != TimeInForce::IOC && order.remaining > 0)
+        {
             order.status = OrderStatus::PartiallyFilled;
-            return buybook.add_order(order);
+            result.resting_order = buybook.add_order(order);
+            return result;
         }
         order.status = OrderStatus::Filled;
-        return std::nullopt;
+        return result;
     }
 
-    std::optional<std::list<Order>::iterator> Market::process_limit_sell_order(Order &order)
+    ProcessResult Market::process_limit_sell_order(Order &order)
     {
         if (!validate_fulfillment(order, Side::Sell) && order.tif == TimeInForce::FOK)
             throw std::runtime_error("FOK order cannot be fulfilled");
 
+        ProcessResult result;
+        
         for (auto price_it = buybook.get_orders().begin(); price_it != buybook.get_orders().end();)
         {
 
@@ -157,17 +169,23 @@ namespace MercEx
                 order.remaining -= trade_quantity;
                 it->remaining -= trade_quantity;
 
+                update_last_price(price_it->first);
+
+                Trade trade(0, order.id, it->id, order.client_id, it->client_id, price_it->first, trade_quantity);
+                std::cout << trade.to_string() << std::endl;
+                result.trades.push_back(trade);
+
                 if (it->remaining == 0)
                 {
-                    order.status = OrderStatus::Filled;
+                    it->status = OrderStatus::Filled;
+                    result.removed_orders.push_back(it->id);
                     it = orders.erase(it);
                 }
                 else
                 {
-                    ++it;
+                    it->status = OrderStatus::PartiallyFilled;
+                    break;
                 }
-
-                update_last_price(price_it->first);
             }
 
             if (orders.empty())
@@ -186,16 +204,19 @@ namespace MercEx
         if (order.tif != TimeInForce::IOC && order.remaining > 0)
         {
             order.status = OrderStatus::PartiallyFilled;
-            return sellbook.add_order(order);
+            result.resting_order = sellbook.add_order(order);
+            return result;
         }
         order.status = OrderStatus::Filled;
-        return std::nullopt;
+        return result;
     }
 
-    bool Market::process_market_buy_order(Order &order)
+    ProcessResult Market::process_market_buy_order(Order &order)
     {
         if (order.price.has_value())
             throw std::invalid_argument("Market order should not have a price");
+
+        ProcessResult result;
 
         for (auto price_it = sellbook.get_orders().begin(); price_it != sellbook.get_orders().end();)
         {
@@ -211,17 +232,23 @@ namespace MercEx
                 order.remaining -= trade_quantity;
                 it->remaining -= trade_quantity;
 
+                update_last_price(price_it->first);
+
+                Trade trade(0, order.id, it->id, order.client_id, it->client_id, price_it->first, trade_quantity);
+                std::cout << trade.to_string() << std::endl;
+                result.trades.push_back(trade);
+
                 if (it->remaining == 0)
                 {
-                    order.status = OrderStatus::Filled;
+                    it->status = OrderStatus::Filled;
+                    result.removed_orders.push_back(it->id);
                     it = orders.erase(it);
                 }
                 else
                 {
-                    ++it;
+                    it->status = OrderStatus::PartiallyFilled;
+                    break;
                 }
-
-                update_last_price(price_it->first);
             }
 
             if (orders.empty())
@@ -237,18 +264,21 @@ namespace MercEx
                 break;
         }
 
-        if (order.remaining > 0){
+        if (order.remaining > 0)
+        {
             order.status = OrderStatus::PartiallyFilled;
-            return false;
+            return result;
         }
         order.status = OrderStatus::Filled;
-        return true;
+        return result;
     }
 
-    bool Market::process_market_sell_order(Order &order)
+    ProcessResult Market::process_market_sell_order(Order &order)
     {
         if (order.price.has_value())
             throw std::invalid_argument("Market order should not have a price");
+
+        ProcessResult result;
 
         for (auto price_it = buybook.get_orders().begin(); price_it != buybook.get_orders().end();)
         {
@@ -264,17 +294,23 @@ namespace MercEx
                 order.remaining -= trade_quantity;
                 it->remaining -= trade_quantity;
 
+                update_last_price(price_it->first);
+
+                Trade trade(0, order.id, it->id, order.client_id, it->client_id, price_it->first, trade_quantity);
+                std::cout << trade.to_string() << std::endl;
+                result.trades.push_back(trade);
+
                 if (it->remaining == 0)
                 {
-                    order.status = OrderStatus::Filled;
+                    it->status = OrderStatus::Filled;
+                    result.removed_orders.push_back(it->id);
                     it = orders.erase(it);
                 }
                 else
                 {
-                    ++it;
+                    it->status = OrderStatus::PartiallyFilled;
+                    break;
                 }
-
-                update_last_price(price_it->first);
             }
 
             if (orders.empty())
@@ -290,12 +326,13 @@ namespace MercEx
                 break;
         }
 
-        if (order.remaining > 0){
+        if (order.remaining > 0)
+        {
             order.status = OrderStatus::PartiallyFilled;
-            return false;
+            return result;
         }
         order.status = OrderStatus::Filled;
-        return true;
+        return result;
     }
 
     const std::string &Market::get_symbol() const { return symbol; }

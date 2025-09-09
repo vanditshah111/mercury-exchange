@@ -18,6 +18,7 @@ set(SOURCES
     src/Market.cpp
     src/MarketRegistry.cpp
     src/MatchingEngine.cpp
+    src/Trade.cpp
 )
 add_executable(mercury_exchange ${SOURCES})
 target_include_directories(mercury_exchange PRIVATE include)

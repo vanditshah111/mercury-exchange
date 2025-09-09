@@ -1,6 +1,7 @@
 #pragma once
 #include "MarketRegistry.hpp"
 #include "Order.hpp"
+#include "Market.hpp"
 
 namespace MercEx
 {

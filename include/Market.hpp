@@ -4,9 +4,12 @@
 #include <optional>
 #include "BuyBook.hpp"
 #include "SellBook.hpp"
+#include "Trade.hpp"
+#include "ProcessResult.hpp"
 
 namespace MercEx
 {
+
     class Market
     {
     public:
@@ -14,11 +17,11 @@ namespace MercEx
 
         bool is_valid_price(double price) const;
         bool validate_fulfillment(const Order &order, Side side);
-        std::optional<std::list<Order>::iterator> process_order(Order &order);
-        std::optional<std::list<Order>::iterator> process_limit_buy_order(Order &order);
-        std::optional<std::list<Order>::iterator> process_limit_sell_order(Order &order);
-        bool process_market_buy_order(Order &order);
-        bool process_market_sell_order(Order &order);
+        ProcessResult process_order(Order &order);
+        ProcessResult process_limit_buy_order(Order &order);
+        ProcessResult process_limit_sell_order(Order &order);
+        ProcessResult process_market_buy_order(Order &order);
+        ProcessResult process_market_sell_order(Order &order);
 
         const std::string &get_symbol() const;
         double get_price_tick() const;
