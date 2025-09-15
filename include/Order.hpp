@@ -3,6 +3,8 @@
 #include <string>
 #include <optional>
 #include <chrono>
+#include <memory>
+#include <list>
 
 namespace MercEx
 {
@@ -66,10 +68,11 @@ namespace MercEx
         OrderStatus status;
         OrderType type;
         TimeInForce tif;
-
-        static Order make_limit_order(OrderID id, ClientID client_id, const std::string &symbol,
+        std::list<Order*>::iterator book_it = {};
+        
+        static std::unique_ptr<Order> make_limit_order(OrderID id, ClientID client_id, const std::string &symbol,
                                       Quantity quantity, Price price, Side side, TimeInForce tif);
-        static Order make_market_order(OrderID id, ClientID client_id, const std::string &symbol,
+        static std::unique_ptr<Order> make_market_order(OrderID id, ClientID client_id, const std::string &symbol,
                                        Quantity quantity, Side side, TimeInForce tif);
 
         void validate() const;

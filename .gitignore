@@ -1,6 +1,6 @@
 # Build folder
 /build/
-
+/tests/
 notes.md
 # VS Code settings
 .vscode/

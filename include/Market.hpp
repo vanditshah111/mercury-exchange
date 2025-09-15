@@ -23,6 +23,8 @@ namespace MercEx
         ProcessResult process_market_buy_order(Order &order);
         ProcessResult process_market_sell_order(Order &order);
 
+        bool cancel_order(Order* order);
+        
         const std::string &get_symbol() const;
         double get_price_tick() const;
         bool active() const;

@@ -22,26 +22,21 @@ namespace MercEx
         {
             for (const auto &[price, orders] : sellbook.get_orders())
             {
-                if (order.price >= price)
-                {
-                    for (const auto &o : orders)
-                        total_matched_quantity += o.quantity;
-                }
-                else
+                if (order.price < price)
                     break;
+                
+                for (const auto &o : orders)
+                        total_matched_quantity += o->quantity;
             }
         }
         else if (side == Side::Sell)
         {
             for (const auto &[price, orders] : buybook.get_orders())
             {
-                if (order.price <= price)
-                {
-                    for (const auto &o : orders)
-                        total_matched_quantity += o.quantity;
-                }
-                else
+                if (order.price > price)
                     break;
+                for (const auto &o : orders)
+                        total_matched_quantity += o->quantity;
             }
         }
         return total_matched_quantity >= order.quantity;
@@ -99,25 +94,27 @@ namespace MercEx
                 if (order.remaining <= 0)
                     break;
 
-                int trade_quantity = std::min(order.remaining, it->remaining);
+                Order *match = *it;
+
+                int trade_quantity = std::min(order.remaining, match->remaining);
                 order.remaining -= trade_quantity;
-                it->remaining -= trade_quantity;
+                match->remaining -= trade_quantity;
 
                 update_last_price(price_it->first);
 
-                Trade trade(0, order.id, it->id, order.client_id, it->client_id, price_it->first, trade_quantity);
-                std::cout << trade.to_string() << std::endl;
+                Trade trade(0, order.id, match->id, order.client_id, match->client_id, price_it->first, trade_quantity);
                 result.trades.push_back(trade);
 
-                if (it->remaining == 0)
+                if (match->remaining == 0)
                 {
-                    it->status = OrderStatus::Filled;
-                    result.removed_orders.push_back(it->id);
+                    match->status = OrderStatus::Filled;
+                    match->book_it = {};
+                    result.removed_orders.push_back(match->id);
                     it = orders.erase(it);
                 }
                 else
                 {
-                    it->status = OrderStatus::PartiallyFilled;
+                    match->status = OrderStatus::PartiallyFilled;
                     break;
                 }
             }
@@ -165,25 +162,26 @@ namespace MercEx
                 if (order.remaining <= 0)
                     break;
 
-                int trade_quantity = std::min(order.remaining, it->remaining);
+                Order* match = *it;
+                int trade_quantity = std::min(order.remaining, match->remaining);
                 order.remaining -= trade_quantity;
-                it->remaining -= trade_quantity;
+                match->remaining -= trade_quantity;
 
                 update_last_price(price_it->first);
 
-                Trade trade(0, order.id, it->id, order.client_id, it->client_id, price_it->first, trade_quantity);
-                std::cout << trade.to_string() << std::endl;
+                Trade trade(0, order.id, match->id, order.client_id, match->client_id, price_it->first, trade_quantity);
                 result.trades.push_back(trade);
 
-                if (it->remaining == 0)
+                if (match->remaining == 0)
                 {
-                    it->status = OrderStatus::Filled;
-                    result.removed_orders.push_back(it->id);
+                    match->status = OrderStatus::Filled;
+                    match->book_it = {};
+                    result.removed_orders.push_back(match->id);
                     it = orders.erase(it);
                 }
                 else
                 {
-                    it->status = OrderStatus::PartiallyFilled;
+                    match->status = OrderStatus::PartiallyFilled;
                     break;
                 }
             }
@@ -228,25 +226,26 @@ namespace MercEx
                 if (order.remaining <= 0)
                     break;
 
-                int trade_quantity = std::min(order.remaining, it->remaining);
+                Order* match = *it;
+                int trade_quantity = std::min(order.remaining, match->remaining);
                 order.remaining -= trade_quantity;
-                it->remaining -= trade_quantity;
+                match->remaining -= trade_quantity;
 
                 update_last_price(price_it->first);
 
-                Trade trade(0, order.id, it->id, order.client_id, it->client_id, price_it->first, trade_quantity);
-                std::cout << trade.to_string() << std::endl;
+                Trade trade(0, order.id, match->id, order.client_id, match->client_id, price_it->first, trade_quantity);
                 result.trades.push_back(trade);
 
-                if (it->remaining == 0)
+                if (match->remaining == 0)
                 {
-                    it->status = OrderStatus::Filled;
-                    result.removed_orders.push_back(it->id);
+                    match->status = OrderStatus::Filled;
+                    match->book_it = {};
+                    result.removed_orders.push_back(match->id);
                     it = orders.erase(it);
                 }
                 else
                 {
-                    it->status = OrderStatus::PartiallyFilled;
+                    match->status = OrderStatus::PartiallyFilled;
                     break;
                 }
             }
@@ -290,25 +289,26 @@ namespace MercEx
                 if (order.remaining <= 0)
                     break;
 
-                int trade_quantity = std::min(order.remaining, it->remaining);
+                Order *match = *it;
+                int trade_quantity = std::min(order.remaining, match->remaining);
                 order.remaining -= trade_quantity;
-                it->remaining -= trade_quantity;
+                match->remaining -= trade_quantity;
 
                 update_last_price(price_it->first);
 
-                Trade trade(0, order.id, it->id, order.client_id, it->client_id, price_it->first, trade_quantity);
-                std::cout << trade.to_string() << std::endl;
+                Trade trade(0, order.id, match->id, order.client_id, match->client_id, price_it->first, trade_quantity);
                 result.trades.push_back(trade);
 
-                if (it->remaining == 0)
+                if (match->remaining == 0)
                 {
-                    it->status = OrderStatus::Filled;
-                    result.removed_orders.push_back(it->id);
+                    match->status = OrderStatus::Filled;
+                    match->book_it = {};
+                    result.removed_orders.push_back(match->id);
                     it = orders.erase(it);
                 }
                 else
                 {
-                    it->status = OrderStatus::PartiallyFilled;
+                    match->status = OrderStatus::PartiallyFilled;
                     break;
                 }
             }
@@ -335,6 +335,32 @@ namespace MercEx
         return result;
     }
 
+    bool Market::cancel_order(Order* order)
+    {
+        if(order->type == OrderType::Market)
+            return true;
+        bool success;
+        if(order->side==Side::Buy)
+        {
+            success = buybook.cancel_order(order->id,order->price.value(),order->book_it);
+            if(!success)
+                return false;
+            order->status = OrderStatus::Canceled;
+            order->book_it = {};
+            order->remaining = 0;
+        }
+        else
+        {
+            success = sellbook.cancel_order(order->id,order->price.value(),order->book_it);
+            if(!success)
+                return false;
+            order->status = OrderStatus::Canceled;
+            order->book_it = {};
+            order->remaining = 0;
+        }
+        return success;
+    }
+
     const std::string &Market::get_symbol() const { return symbol; }
     double Market::get_price_tick() const { return price_tick; }
     bool Market::active() const { return is_active; }
@@ -351,7 +377,7 @@ namespace MercEx
         {
             for (const auto &order : orders)
             {
-                std::cout << "Price: " << price << ", OrderID: " << order.id << ", Quantity: " << order.quantity << ", Remaining: " << order.remaining << "\n";
+                std::cout << "Price: " << price << ", OrderID: " << order->id << ", Quantity: " << order->quantity << ", Remaining: " << order->remaining << "\n";
             }
         }
 
@@ -360,7 +386,7 @@ namespace MercEx
         {
             for (const auto &order : orders)
             {
-                std::cout << "Price: " << price << ", OrderID: " << order.id << ", Quantity: " << order.quantity << ", Remaining: " << order.remaining << "\n";
+                std::cout << "Price: " << price << ", OrderID: " << order->id << ", Quantity: " << order->quantity << ", Remaining: " << order->remaining << "\n";
             }
         }
     }

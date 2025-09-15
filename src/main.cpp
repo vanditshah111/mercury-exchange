@@ -1,57 +1,53 @@
-#include <iostream>
-#include "Order.hpp"
-#include "Market.hpp"
 #include "MarketRegistry.hpp"
 #include "MatchingEngine.hpp"
+#include <iostream>
 
 using namespace MercEx;
 
 int main() {
+    // --- Setup ---
+    MarketRegistry registry;
+
+    // Add markets to the registry
+    registry.create_market("AAPL", 0.01);
+    registry.create_market("GOOG", 0.01);
+
+    // Create matching engine
+    MatchingEngine engine(registry);
+
+    // --- Submit some orders ---
     try {
-        MarketRegistry registry;
-        MatchingEngine engine(registry);
+        // Limit orders
+        Market* market = registry.get_market("AAPL");
+        OrderID b1 = engine.submit_order(1, "AAPL", 100, Side::Buy, 150.00, OrderType::Limit, TimeInForce::GTC);
+        OrderID b2 = engine.submit_order(2, "AAPL", 50,  Side::Buy, 149.50, OrderType::Limit, TimeInForce::GTC);
+        OrderID s1 = engine.submit_order(3, "AAPL", 80,  Side::Sell, 150.00, OrderType::Limit, TimeInForce::GTC);
+        market->print_order_books();
+        // Market order (should match immediately)
+        OrderID b3 = engine.submit_order(4, "AAPL", 60,  Side::Buy, std::nullopt, OrderType::Market, TimeInForce::IOC);
 
-        // Create market
-        Market& market = registry.create_market("AAPL", 0.01);
-
-        // === STEP 1: Buy Limit ===
-        Order buy1 = Order::make_limit_order(1, 101, "AAPL", 50, 100.0, Side::Buy, TimeInForce::GTC);
-        std::cout << "Submitting Buy Order:\n" << to_string(buy1) << "\n";
-        engine.match_order(buy1);
-        market.print_order_books();
-
-        // === STEP 2: Sell Limit ===
-        Order sell1 = Order::make_limit_order(2, 201, "AAPL", 70, 101.0, Side::Sell, TimeInForce::GTC);
-        std::cout << "\nSubmitting Sell Order:\n" << to_string(sell1) << "\n";
-        engine.match_order(sell1);
-        market.print_order_books();
-
-        // === STEP 3: Aggressive Buy Limit (crosses @101) ===
-        Order buy2 = Order::make_limit_order(3, 102, "AAPL", 80, 105.0, Side::Buy, TimeInForce::GTC);
-        std::cout << "\nSubmitting Aggressive Buy Order:\n" << to_string(buy2) << "\n";
-        engine.match_order(buy2);
-        market.print_order_books();
-
-        // === STEP 4: Market Sell Order (consumes best bid) ===
-        Order sell2 = Order::make_market_order(4, 202, "AAPL", 30, Side::Sell, TimeInForce::IOC);
-        std::cout << "\nSubmitting Market Sell Order:\n" << to_string(sell2) << "\n";
-        engine.match_order(sell2);
-        market.print_order_books();
-
-        // === Cancel test ===
-        std::cout << "\nCancelling order ID=2...\n";
-        if (engine.cancel_order(2)) {
-            std::cout << "Order cancelled successfully\n";
+        // Cancel one order
+        bool cancelled = engine.cancel_order(b2);
+        std::cout << "Cancelled order b2: " << std::boolalpha << cancelled << "\n";
+        cancelled = engine.cancel_order(b3);
+        std::cout << "Cancelled order b2: " << std::boolalpha << cancelled << "\n";
+        // --- Print order books ---
+        
+        if (market) {
+            market->print_order_books();
         } else {
-            std::cout << "Cancel failed (order already matched/removed)\n";
+            std::cerr << "Market not found!\n";
         }
-        market.print_order_books();
 
-        // === Market snapshot ===
-        std::cout << "\n=== Market Registry ===\n";
-        registry.print_markets();
-    }
-    catch (const std::exception& ex) {
+        // --- Inspect an order by ID ---
+        const Order* ord = engine.get_order(b1);
+        if (ord) {
+            std::cout << "Order " << ord->id 
+                      << " has remaining " << ord->remaining 
+                      << " and status " << to_string(ord->status) << "\n";
+        }
+
+    } catch (const std::exception& ex) {
         std::cerr << "Error: " << ex.what() << "\n";
     }
 

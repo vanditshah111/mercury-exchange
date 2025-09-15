@@ -121,41 +121,43 @@ namespace MercEx
         throw std::invalid_argument("Invalid TimeInForce string");
     }
 
-    Order Order::make_limit_order(OrderID id, ClientID client_id, const std::string &symbol,
+    std::unique_ptr<Order> Order::make_limit_order(OrderID id, ClientID client_id, const std::string &symbol,
                                   Quantity quantity, Price price, Side side, TimeInForce tif)
     {
-        Order o;
-        o.id = id;
-        o.client_id = client_id;
-        o.symbol = symbol;
-        o.timestamp = Clock::now();
-        o.quantity = quantity;
-        o.remaining = quantity;
-        o.price = price;
-        o.side = side;
-        o.type = OrderType::Limit;
-        o.tif = tif;
-        o.status = OrderStatus::New;
-        o.validate();
+        auto o = std::make_unique<Order>();
+        o->id = id;
+        o->client_id = client_id;
+        o->symbol = symbol;
+        o->timestamp = Clock::now();
+        o->quantity = quantity;
+        o->remaining = quantity;
+        o->price = price;
+        o->side = side;
+        o->type = OrderType::Limit;
+        o->tif = tif;
+        o->status = OrderStatus::New;
+        o->book_it = {};
+        o->validate();
         return o;
     }
 
-    Order Order::make_market_order(OrderID id, ClientID client_id, const std::string &symbol,
+    std::unique_ptr<Order> Order::make_market_order(OrderID id, ClientID client_id, const std::string &symbol,
                                    Quantity quantity, Side side, TimeInForce tif)
     {
-        Order o;
-        o.id = id;
-        o.client_id = client_id;
-        o.symbol = symbol;
-        o.timestamp = Clock::now();
-        o.quantity = quantity;
-        o.remaining = quantity;
-        o.price = std::nullopt;
-        o.side = side;
-        o.type = OrderType::Market;
-        o.tif = tif;
-        o.status = OrderStatus::New;
-        o.validate();
+        auto o = std::make_unique<Order>();
+        o->id = id;
+        o->client_id = client_id;
+        o->symbol = symbol;
+        o->timestamp = Clock::now();
+        o->quantity = quantity;
+        o->remaining = quantity;
+        o->price = std::nullopt;
+        o->side = side;
+        o->type = OrderType::Market;
+        o->tif = tif;
+        o->status = OrderStatus::New;
+        o->book_it = {};
+        o->validate();
         return o;
     }
 

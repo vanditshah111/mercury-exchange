@@ -9,7 +9,7 @@ namespace MercEx
 {
     struct ProcessResult
     {
-        std::optional<std::list<Order>::iterator> resting_order;
+        std::optional<std::list<Order*>::iterator> resting_order;
         std::vector<Trade> trades;
         std::vector<OrderID> removed_orders;
     };
