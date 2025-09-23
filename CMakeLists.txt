@@ -34,3 +34,6 @@ target_link_libraries(test_deterministic PRIVATE mercury_core)
 # Stress test executable
 add_executable(test_stress tests/test_stress.cpp)
 target_link_libraries(test_stress PRIVATE mercury_core)
+
+add_executable(test_latency tests/test_latency.cpp)
+target_link_libraries(test_latency PRIVATE mercury_core)

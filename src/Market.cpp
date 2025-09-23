@@ -42,7 +42,7 @@ namespace MercEx
         return total_matched_quantity >= order.quantity;
     }
 
-    ProcessResult Market::process_order(Order &order)
+    std::vector<MarketEvent> Market::process_order(Order &order)
     {
         if (!is_active)
             throw std::runtime_error("Market is inactive");
@@ -74,12 +74,12 @@ namespace MercEx
         }
     }
 
-    ProcessResult Market::process_limit_buy_order(Order &order)
+    std::vector<MarketEvent> Market::process_limit_buy_order(Order &order)
     {
         if (!validate_fulfillment(order, Side::Buy) && order.tif == TimeInForce::FOK)
             throw std::runtime_error("FOK order cannot be fulfilled");
 
-        ProcessResult result;
+        std::vector<MarketEvent> events;
 
         for (auto price_it = sellbook.get_orders().begin(); price_it != sellbook.get_orders().end();)
         {
@@ -103,13 +103,14 @@ namespace MercEx
                 update_last_price(price_it->first);
 
                 Trade trade(0, order.id, match->id, order.client_id, match->client_id, price_it->first, trade_quantity);
-                result.trades.push_back(trade);
+                events.push_back({MarketEventType::TradeOccurred, order.id, trade, {}});
+
 
                 if (match->remaining == 0)
                 {
                     match->status = OrderStatus::Filled;
                     match->book_it = {};
-                    result.removed_orders.push_back(match->id);
+                    events.push_back({MarketEventType::OrderFilled, match->id, {}, OrderStatus::Filled});
                     it = orders.erase(it);
                 }
                 else
@@ -142,7 +143,7 @@ namespace MercEx
         return result;
     }
 
-    ProcessResult Market::process_limit_sell_order(Order &order)
+    std::vector<MarketEvent> Market::process_limit_sell_order(Order &order)
     {
         if (!validate_fulfillment(order, Side::Sell) && order.tif == TimeInForce::FOK)
             throw std::runtime_error("FOK order cannot be fulfilled");
@@ -209,7 +210,7 @@ namespace MercEx
         return result;
     }
 
-    ProcessResult Market::process_market_buy_order(Order &order)
+    std::vector<MarketEvent> Market::process_market_buy_order(Order &order)
     {
         if (order.price.has_value())
             throw std::invalid_argument("Market order should not have a price");
@@ -272,7 +273,7 @@ namespace MercEx
         return result;
     }
 
-    ProcessResult Market::process_market_sell_order(Order &order)
+    std::vector<MarketEvent> Market::process_market_sell_order(Order &order)
     {
         if (order.price.has_value())
             throw std::invalid_argument("Market order should not have a price");

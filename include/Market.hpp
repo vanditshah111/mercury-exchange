@@ -6,6 +6,7 @@
 #include "SellBook.hpp"
 #include "Trade.hpp"
 #include "ProcessResult.hpp"
+#include "MarketEvent.hpp"
 
 namespace MercEx
 {
@@ -17,11 +18,11 @@ namespace MercEx
 
         bool is_valid_price(double price) const;
         bool validate_fulfillment(const Order &order, Side side);
-        ProcessResult process_order(Order &order);
-        ProcessResult process_limit_buy_order(Order &order);
-        ProcessResult process_limit_sell_order(Order &order);
-        ProcessResult process_market_buy_order(Order &order);
-        ProcessResult process_market_sell_order(Order &order);
+        std::vector<MarketEvent> process_order(Order &order);
+        std::vector<MarketEvent> process_limit_buy_order(Order &order);
+        std::vector<MarketEvent> process_limit_sell_order(Order &order);
+        std::vector<MarketEvent> process_market_buy_order(Order &order);
+        std::vector<MarketEvent> process_market_sell_order(Order &order);
 
         bool cancel_order(Order* order);
         
