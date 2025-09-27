@@ -1,50 +1,83 @@
-#include <iostream>
-#include <thread>
-#include <chrono>
 #include "MarketRegistry.hpp"
 #include "MatchingEngine.hpp"
+#include <iostream>
+#include <thread>
+#include <vector>
+#include <random>
+#include <chrono>
 
 using namespace MercEx;
 
 int main() {
-    // --- Setup ---
     MarketRegistry registry;
     MatchingEngine engine(registry);
 
+    // Create markets
     double tick = 0.5;
-    uint16_t aapl_id = 1;
-    uint16_t msft_id = 2;
+    auto& aapl_proc = registry.create_market("AAPL", tick, 1);
+    auto& goog_proc = registry.create_market("GOOG", tick, 2);
 
-    // Create two markets
-    MarketProcessor& aapl_proc = registry.create_market("AAPL", tick, aapl_id);
-    MarketProcessor& msft_proc = registry.create_market("MSFT", tick, msft_id);
+    std::vector<std::string> symbols = {"AAPL", "GOOG"};
+    std::vector<Side> sides = {Side::Buy, Side::Sell};
 
-    // Pause main thread for debugger if needed
-    std::cout << "Press Enter to continue..." << std::endl;
-    std::cin.get();
+    std::mt19937 rng(42);
+    std::uniform_int_distribution<int> qty_dist(10, 100);
+    std::uniform_int_distribution<int> price_dist(140, 160);
+    std::uniform_real_distribution<double> stop_offset(1.0, 3.0);
+    std::uniform_int_distribution<int> type_dist(0, 2); // Limit, Market, Stop
 
-    // --- Submit some orders ---
-    engine.submit_order(101, "AAPL", 100, Side::Buy, 150.0, OrderType::Limit, TimeInForce::GTC);
-    engine.submit_order(102, "AAPL", 50, Side::Sell, 149.5, OrderType::Limit, TimeInForce::GTC);
-    engine.submit_order(103, "MSFT", 200, Side::Buy, std::nullopt, OrderType::Market, TimeInForce::IOC);
-    engine.submit_order(104, "MSFT", 150, Side::Sell, 300.0, OrderType::Limit, TimeInForce::GTC);
+    const int num_orders = 1000000;
+    std::vector<OrderID> order_ids;
 
-    // --- Cancel example ---
-    OrderID cancel_id = engine.submit_order(105, "AAPL", 30, Side::Sell, 151.0, OrderType::Limit, TimeInForce::GTC);
-    engine.cancel_order(cancel_id, "AAPL");
+    auto start = std::chrono::high_resolution_clock::now();
 
-    // Give some time for the processor threads to handle events
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
-    std::cin.get();
-    // Print the current market state
-    registry.print_markets();
+    for (int i = 0; i < num_orders; ++i) {
+        std::string sym = symbols[i % symbols.size()];
+        Side side = sides[i % sides.size()];
+        Quantity qty = qty_dist(rng);
 
-    std::cout << "Press Enter to exit..." << std::endl;
-    std::cin.get();
+        OrderType type;
+        std::optional<Price> price;
+        std::optional<Price> stop_price;
 
-    // Stop all processors gracefully
+        int t = type_dist(rng);
+        if (t == 0) { // Limit
+            type = OrderType::Limit;
+            price = price_dist(rng);
+        } else if (t == 1) { // Market
+            type = OrderType::Market;
+        } else { // Stop
+            type = OrderType::Stop;
+            price = std::nullopt;
+            double last = price_dist(rng);
+            stop_price = (side == Side::Buy) ? last + stop_offset(rng)
+                                             : last - stop_offset(rng);
+        }
+
+        OrderID id = engine.submit_order(i, sym, qty, side, price, type, TimeInForce::GTC, stop_price);
+        order_ids.push_back(id);
+    }
+
+    // Give processor threads some time to finish
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+    auto end = std::chrono::high_resolution_clock::now();
+    double total_ms = std::chrono::duration<double, std::milli>(end - start).count();
+
+    std::cout << "Submitted " << num_orders << " orders.\n";
+    std::cout << "Total submission + processing time: " << total_ms << " ms\n";
+
+    // Print per-market average processing latency
+    for (const auto& sym : symbols) {
+        auto* proc = registry.get_market_processor(sym);
+        if (proc) {
+            std::cout << sym << " average processing latency: "
+                      << proc->get_average_latency_ms() << " ms\n";
+        }
+    }
+
     registry.remove_market("AAPL");
-    registry.remove_market("MSFT");
+    registry.remove_market("GOOG");
 
     return 0;
 }

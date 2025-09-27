@@ -34,7 +34,6 @@ namespace MercEx
                 ev = queue.front();
                 queue.pop_front();
             }
-            std::cout << "Processing some event: " << std::endl;
             handle_event(ev);
         }
     }
@@ -54,6 +53,7 @@ namespace MercEx
 
     void MarketProcessor::handle_event(MarketEvent &ev)
     {
+        auto submit_time = std::chrono::steady_clock::now();
         switch (ev.type)
         {
         case MarketEventType::AddOrder:
@@ -99,6 +99,12 @@ namespace MercEx
 
             Price prevltp = market->get_last_price().value_or(0.0);
             auto events = market->process_order(*ord_ptr);
+            auto end = std::chrono::steady_clock::now();
+            auto latency_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(end - submit_time).count();
+
+            // accumulate statistics
+            total_latency_ns += latency_ns;
+            processed_orders++;
             handle_market_events(events);
             if (market->get_last_price().value_or(0.0) != prevltp)
             {
@@ -155,18 +161,18 @@ namespace MercEx
 
     void MarketProcessor::handle_market_events(const std::vector<MarketEvent> &events)
     {
-        for (const auto &e : events)
-        {
-            std::cout << "Market Event: Type=" << static_cast<int>(e.type)
-                      << ", OrderID=" << e.order_id
-                      << ", Quantity=" << e.quantity
-                      << ", Price=" << (e.price.has_value() ? std::to_string(*e.price) : "N/A")
-                      << ", StopPrice=" << (e.stop_price.has_value() ? std::to_string(*e.stop_price) : "N/A")
-                      << ", Side=" << static_cast<int>(e.side)
-                      << ", ExecutedQty=" << (e.executed_qty.has_value() ? std::to_string(*e.executed_qty) : "N/A")
-                      << ", ExecutedPrice=" << (e.executed_price.has_value() ? std::to_string(*e.executed_price) : "N/A")
-                      << std::endl;
-        }
+        // for (const auto &e : events)
+        // {
+        //     // std::cout << "Market Event: Type=" << static_cast<int>(e.type)
+        //     //           << ", OrderID=" << e.order_id
+        //     //           << ", Quantity=" << e.quantity
+        //     //           << ", Price=" << (e.price.has_value() ? std::to_string(*e.price) : "N/A")
+        //     //           << ", StopPrice=" << (e.stop_price.has_value() ? std::to_string(*e.stop_price) : "N/A")
+        //     //           << ", Side=" << static_cast<int>(e.side)
+        //     //           << ", ExecutedQty=" << (e.executed_qty.has_value() ? std::to_string(*e.executed_qty) : "N/A")
+        //     //           << ", ExecutedPrice=" << (e.executed_price.has_value() ? std::to_string(*e.executed_price) : "N/A")
+        //     //           << std::endl;
+        // }
     }
 
     Market &MarketProcessor::get_market()

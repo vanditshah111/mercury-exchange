@@ -45,12 +45,6 @@ namespace MercEx
 
     std::vector<MarketEvent> Market::process_order(Order &order)
     {
-        std::cout << "Processing order: ID=" << order.id << ", Type=" << to_string(order.type) << ", Side=" << to_string(order.side) << ", Qty=" << order.quantity;
-        if (order.price.has_value())
-            std::cout << ", Price=" << *order.price;
-        if (order.stop_price.has_value())
-            std::cout << ", StopPrice=" << *order.stop_price;
-        std::cout << std::endl;
         if (!is_active)
             throw std::runtime_error("Market is inactive");
 
