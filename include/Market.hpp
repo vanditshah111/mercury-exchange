@@ -24,8 +24,8 @@ namespace MercEx
         std::vector<MarketEvent> process_market_buy_order(Order &order);
         std::vector<MarketEvent> process_market_sell_order(Order &order);
 
-        bool cancel_order(Order* order);
-        
+        bool cancel_order(Order *order);
+
         const std::string &get_symbol() const;
         double get_price_tick() const;
         bool active() const;
@@ -43,8 +43,11 @@ namespace MercEx
         std::optional<Price> get_bid_price() const;
         std::optional<Price> get_ask_price() const;
 
+        MarketID get_market_id() const;
+
     private:
         std::string symbol;
+        MarketID market_id;
         double price_tick;
         bool is_active;
         BuyBook buybook;

@@ -1,7 +1,9 @@
 #pragma once
 #include "MarketRegistry.hpp"
-#include "Order.hpp"
-#include "Market.hpp"
+#include "MarketEvent.hpp"
+#include <atomic>
+#include <unordered_map>
+#include <memory>
 
 namespace MercEx
 {
@@ -17,34 +19,19 @@ namespace MercEx
                              Side side,
                              std::optional<Price> price,
                              OrderType type,
-                             TimeInForce tif);
+                             TimeInForce tif,
+                             std::optional<Price> stop_price = std::nullopt);
 
-        bool cancel_order(OrderID id);
+        bool cancel_order(OrderID id, const std::string &symbol);
 
-        const Order *get_order(OrderID id) const;
+        //const Order *get_order(OrderID id, const std::string &symbol) const;
 
     private:
-        MarketRegistry &registry;
-        std::unordered_map<OrderID, std::unique_ptr<Order>> all_orders;
+        MarketRegistry &registry_;
 
-        OrderID next_id = 1;
+        std::unordered_map<uint16_t, std::atomic<uint64_t>> market_counters_;
 
-        OrderID generate_order_id();
-
-        OrderID submit_limit_order(
-            ClientID client_id,
-            const std::string &symbol,
-            Quantity qty,
-            Price price,
-            Side side,
-            TimeInForce tif);
-
-        OrderID submit_market_order(
-            ClientID client_id,
-            const std::string &symbol,
-            Quantity qty,
-            Side side,
-            TimeInForce tif);
+        OrderID generate_order_id(uint16_t market_id);
     };
 
 } // namespace MercEx

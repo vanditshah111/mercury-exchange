@@ -132,6 +132,7 @@ namespace MercEx
         o->quantity = quantity;
         o->remaining = quantity;
         o->price = price;
+        o->stop_price = std::nullopt;
         o->side = side;
         o->type = OrderType::Limit;
         o->tif = tif;
@@ -152,6 +153,7 @@ namespace MercEx
         o->quantity = quantity;
         o->remaining = quantity;
         o->price = std::nullopt;
+        o->stop_price = std::nullopt;
         o->side = side;
         o->type = OrderType::Market;
         o->tif = tif;
@@ -161,6 +163,47 @@ namespace MercEx
         return o;
     }
 
+    std::unique_ptr<Order> Order::make_stop_limit_order(OrderID id, ClientID client_id, const std::string &symbol,
+                                  Quantity quantity, Price price, Price stop_price, Side side, TimeInForce tif)
+    {
+        auto o = std::make_unique<Order>();
+        o->id = id;
+        o->client_id = client_id;
+        o->symbol = symbol;
+        o->timestamp = Clock::now();
+        o->quantity = quantity;
+        o->remaining = quantity;
+        o->price = price;
+        o->stop_price = stop_price;
+        o->side = side;
+        o->type = OrderType::StopLimit;
+        o->tif = tif;
+        o->status = OrderStatus::New;
+        o->book_it = {};
+        o->validate();
+        return o;
+    }
+
+    std::unique_ptr<Order> Order::make_stop_order(OrderID id, ClientID client_id, const std::string &symbol,
+                                  Quantity quantity, Price stop_price, Side side, TimeInForce tif)
+    {
+        auto o = std::make_unique<Order>();
+        o->id = id;
+        o->client_id = client_id;
+        o->symbol = symbol;
+        o->timestamp = Clock::now();
+        o->quantity = quantity;
+        o->remaining = quantity;
+        o->price = std::nullopt;
+        o->stop_price = stop_price;
+        o->side = side;
+        o->type = OrderType::Stop;
+        o->tif = tif;
+        o->status = OrderStatus::New;
+        o->book_it = {};
+        o->validate();
+        return o;
+    }
     void Order::validate() const
     {
         if (symbol.empty())

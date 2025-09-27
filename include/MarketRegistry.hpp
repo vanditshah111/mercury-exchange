@@ -1,25 +1,20 @@
 #pragma once
-#include "Market.hpp"
-#include <string>
+#include "MarketProcessor.hpp"
 #include <unordered_map>
-#include <stdexcept>
-#include <iostream>
+#include <memory>
+#include <string>
 
-namespace MercEx
-{
+namespace MercEx {
 
-    class MarketRegistry
-    {
-    public:
-        Market &create_market(const std::string &symbol, double price_tick);
+class MarketRegistry {
+public:
+    MarketProcessor& create_market(const std::string& symbol, double price_tick, uint16_t market_id);
+    MarketProcessor* get_market_processor(const std::string& symbol);
+    bool remove_market(const std::string& symbol);
+    void print_markets() const;
 
-        Market *get_market(const std::string &symbol);
+private:
+    std::unordered_map<std::string, std::unique_ptr<MarketProcessor>> processors_;
+};
 
-        bool remove_market(const std::string &symbol);
-
-        void print_markets() const;
-
-    private:
-        std::unordered_map<std::string, Market> markets;
-    };
-}
+} // namespace MercEx

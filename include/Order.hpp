@@ -11,6 +11,7 @@ namespace MercEx
 
     using OrderID = std::uint64_t;
     using ClientID = std::uint32_t;
+    using MarketID = std::uint16_t;
     using Quantity = std::int32_t;
     using Price = double;
     using Clock = std::chrono::steady_clock;
@@ -25,7 +26,8 @@ namespace MercEx
     {
         Limit,
         Market,
-        Stop
+        Stop,
+        StopLimit
     };
     enum class TimeInForce : std::uint8_t
     {
@@ -64,6 +66,7 @@ namespace MercEx
         Quantity quantity;
         Quantity remaining;
         std::optional<Price> price;
+        std::optional<Price> stop_price;
         Side side;
         OrderStatus status;
         OrderType type;
@@ -74,6 +77,10 @@ namespace MercEx
                                       Quantity quantity, Price price, Side side, TimeInForce tif);
         static std::unique_ptr<Order> make_market_order(OrderID id, ClientID client_id, const std::string &symbol,
                                        Quantity quantity, Side side, TimeInForce tif);
+        static std::unique_ptr<Order> make_stop_order(OrderID id, ClientID client_id, const std::string &symbol,
+                                    Quantity quantity, Price stop_price, Side side, TimeInForce tif);
+        static std::unique_ptr<Order> make_stop_limit_order(OrderID id, ClientID client_id, const std::string &symbol,
+                                      Quantity quantity, Price price, Price stop_price, Side side, TimeInForce tif);
 
         void validate() const;
     };

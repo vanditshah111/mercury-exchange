@@ -1,106 +1,63 @@
-#include "../include/MatchingEngine.hpp"
+#include "MatchingEngine.hpp"
 #include <stdexcept>
+#include <chrono>
 
-namespace MercEx
+namespace MercEx {
+
+MatchingEngine::MatchingEngine(MarketRegistry& registry)
+    : registry_(registry) {}
+
+OrderID MatchingEngine::submit_order(ClientID client_id,
+                                     const std::string& symbol,
+                                     Quantity quantity,
+                                     Side side,
+                                     std::optional<Price> price,
+                                     OrderType type,
+                                     TimeInForce tif,
+                                     std::optional<Price> stop_price)
 {
-
-    MatchingEngine::MatchingEngine(MarketRegistry &registry)
-        : registry(registry) {}
-
-    OrderID MatchingEngine::generate_order_id() {
-        return next_id++;
+    auto* processor = registry_.get_market_processor(symbol);
+    if (!processor) {
+        throw std::invalid_argument("Unknown market: " + symbol);
     }
 
-    OrderID MatchingEngine::submit_order(ClientID client_id,
-                                         const std::string& symbol,
-                                         Quantity quantity,
-                                         Side side,
-                                         std::optional<Price> price,
-                                         OrderType type,
-                                         TimeInForce tif)
-    {
-        switch (type) {
-            case OrderType::Limit:
-                if (!price) throw std::invalid_argument("Limit order requires price");
-                return submit_limit_order(client_id, symbol, quantity, *price, side, tif);
+    MarketID market_id = processor->get_market_id();
+    OrderID id = generate_order_id(market_id);
 
-            case OrderType::Market:
-                if (price) throw std::invalid_argument("Market order must not have price");
-                return submit_market_order(client_id, symbol, quantity, side, tif);
+    MarketEvent ev;
+    ev.type = MarketEventType::AddOrder;
+    ev.order_id = id;
+    ev.client_id = client_id;
+    ev.symbol = symbol;
+    ev.quantity = quantity;
+    ev.side = side;
+    ev.price = price;
+    ev.stop_price = stop_price;
+    ev.order_type = type;
+    ev.tif = tif;
+    ev.timestamp = std::chrono::steady_clock::now();
 
-            case OrderType::Stop:
-                throw std::logic_error("Stop orders not implemented yet");
-        }
-        throw std::invalid_argument("Unknown order type");
-    }
+    processor->submit_event(ev);
 
-    OrderID MatchingEngine::submit_limit_order(ClientID client_id,
-                                               const std::string& symbol,
-                                               Quantity quantity,
-                                               Price price,
-                                               Side side,
-                                               TimeInForce tif)
-    {
-        OrderID id = generate_order_id();
-        auto order = Order::make_limit_order(id, client_id, symbol, quantity, price, side, tif);
+    return id;
+}
 
-        Order* raw = order.get();
-        all_orders.emplace(id, std::move(order));
+bool MatchingEngine::cancel_order(OrderID id, const std::string& symbol) {
+    auto* processor = registry_.get_market_processor(symbol);
+    if (!processor) return false;
 
-        Market* market = registry.get_market(symbol);
-        if (!market) throw std::runtime_error("Unknown market: " + symbol);
+    MarketEvent ev;
+    ev.type = MarketEventType::CancelOrder;
+    ev.order_id = id;
+    ev.timestamp = std::chrono::steady_clock::now();
 
-        market->process_order(*raw);
-        return id;
-    }
+    processor->submit_event(ev);
+    return true;
+}
 
-    OrderID MatchingEngine::submit_market_order(ClientID client_id,
-                                                const std::string& symbol,
-                                                Quantity quantity,
-                                                Side side,
-                                                TimeInForce tif)
-    {
-        OrderID id = generate_order_id();
-        auto order = Order::make_market_order(id, client_id, symbol, quantity, side, tif);
-
-        Order* raw = order.get();
-        all_orders.emplace(id, std::move(order));
-
-        Market* market = registry.get_market(symbol);
-        if (!market) throw std::runtime_error("Unknown market: " + symbol);
-
-        market->process_order(*raw);
-        return id;
-    }
-
-    bool MatchingEngine::cancel_order(OrderID id) {
-        auto it = all_orders.find(id);
-        if (it == all_orders.end()) return false;
-
-        Order* order = it->second.get();
-        if (order->status == OrderStatus::Canceled ||
-            order->status == OrderStatus::Filled) {
-            return false;
-        }
-
-        Market* market = registry.get_market(order->symbol);
-        if (!market) return false;
-
-        bool success = market->cancel_order(order);
-        if (success) {
-            order->status = OrderStatus::Canceled;
-        }
-        return success;
-    }
-
-    const Order *MatchingEngine::get_order(OrderID id) const
-    {
-        auto it = all_orders.find(id);
-        if (it == all_orders.end()) return nullptr;
-
-        Order* order = it->second.get();
-        
-        return order;
-    }
+OrderID MatchingEngine::generate_order_id(MarketID market_id) {
+    uint64_t counter = market_counters_[market_id].fetch_add(1, std::memory_order_relaxed);
+    return (static_cast<OrderID>(market_id) << 48) | (counter & 0x0000FFFFFFFFFFFFULL);
+}
 
 } // namespace MercEx

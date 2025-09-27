@@ -1,5 +1,6 @@
 #include "Market.hpp"
 #include "Trade.hpp"
+#include "MarketEvent.hpp"
 #include <cmath>
 #include <stdexcept>
 #include <iostream>
@@ -24,9 +25,9 @@ namespace MercEx
             {
                 if (order.price < price)
                     break;
-                
+
                 for (const auto &o : orders)
-                        total_matched_quantity += o->quantity;
+                    total_matched_quantity += o->quantity;
             }
         }
         else if (side == Side::Sell)
@@ -36,7 +37,7 @@ namespace MercEx
                 if (order.price > price)
                     break;
                 for (const auto &o : orders)
-                        total_matched_quantity += o->quantity;
+                    total_matched_quantity += o->quantity;
             }
         }
         return total_matched_quantity >= order.quantity;
@@ -44,6 +45,12 @@ namespace MercEx
 
     std::vector<MarketEvent> Market::process_order(Order &order)
     {
+        std::cout << "Processing order: ID=" << order.id << ", Type=" << to_string(order.type) << ", Side=" << to_string(order.side) << ", Qty=" << order.quantity;
+        if (order.price.has_value())
+            std::cout << ", Price=" << *order.price;
+        if (order.stop_price.has_value())
+            std::cout << ", StopPrice=" << *order.stop_price;
+        std::cout << std::endl;
         if (!is_active)
             throw std::runtime_error("Market is inactive");
 
@@ -102,15 +109,13 @@ namespace MercEx
 
                 update_last_price(price_it->first);
 
-                Trade trade(0, order.id, match->id, order.client_id, match->client_id, price_it->first, trade_quantity);
-                events.push_back({MarketEventType::TradeOccurred, order.id, trade, {}});
-
+                events.push_back(MarketEvent::make_trade(order.id, match->id, price_it->first, trade_quantity));
 
                 if (match->remaining == 0)
                 {
                     match->status = OrderStatus::Filled;
                     match->book_it = {};
-                    events.push_back({MarketEventType::OrderFilled, match->id, {}, OrderStatus::Filled});
+                    events.push_back(MarketEvent::make_filled(match->id, match->symbol));
                     it = orders.erase(it);
                 }
                 else
@@ -132,24 +137,33 @@ namespace MercEx
             if (order.remaining <= 0)
                 break;
         }
-
-        if (order.tif != TimeInForce::IOC && order.remaining > 0)
+        if (order.remaining < order.quantity)
         {
             order.status = OrderStatus::PartiallyFilled;
-            result.resting_order = buybook.add_order(order);
-            return result;
         }
-        order.status = OrderStatus::Filled;
-        return result;
+        else
+        {
+            order.status = OrderStatus::New;
+        }
+        if (order.remaining == 0)
+        {
+            order.status = OrderStatus::Filled;
+            events.push_back(MarketEvent::make_filled(order.id, order.symbol));
+        }
+        else if (order.tif != TimeInForce::IOC)
+        {
+            auto it = buybook.add_order(order);
+        }
+        return events;
     }
-
+    
     std::vector<MarketEvent> Market::process_limit_sell_order(Order &order)
     {
         if (!validate_fulfillment(order, Side::Sell) && order.tif == TimeInForce::FOK)
             throw std::runtime_error("FOK order cannot be fulfilled");
 
-        ProcessResult result;
-        
+        std::vector<MarketEvent> events;
+
         for (auto price_it = buybook.get_orders().begin(); price_it != buybook.get_orders().end();)
         {
 
@@ -163,21 +177,20 @@ namespace MercEx
                 if (order.remaining <= 0)
                     break;
 
-                Order* match = *it;
+                Order *match = *it;
                 int trade_quantity = std::min(order.remaining, match->remaining);
                 order.remaining -= trade_quantity;
                 match->remaining -= trade_quantity;
 
                 update_last_price(price_it->first);
 
-                Trade trade(0, order.id, match->id, order.client_id, match->client_id, price_it->first, trade_quantity);
-                result.trades.push_back(trade);
+                events.push_back(MarketEvent::make_trade(order.id, match->id, price_it->first, trade_quantity));
 
                 if (match->remaining == 0)
                 {
                     match->status = OrderStatus::Filled;
                     match->book_it = {};
-                    result.removed_orders.push_back(match->id);
+                    events.push_back(MarketEvent::make_filled(match->id, match->symbol));
                     it = orders.erase(it);
                 }
                 else
@@ -200,14 +213,24 @@ namespace MercEx
                 break;
         }
 
-        if (order.tif != TimeInForce::IOC && order.remaining > 0)
+        if (order.remaining < order.quantity)
         {
             order.status = OrderStatus::PartiallyFilled;
-            result.resting_order = sellbook.add_order(order);
-            return result;
         }
-        order.status = OrderStatus::Filled;
-        return result;
+        else
+        {
+            order.status = OrderStatus::New;
+        }
+        if (order.remaining == 0)
+        {
+            order.status = OrderStatus::Filled;
+            events.push_back(MarketEvent::make_filled(order.id, order.symbol));
+        }
+        else if (order.tif != TimeInForce::IOC)
+        {
+            auto it = sellbook.add_order(order);
+        }
+        return events;
     }
 
     std::vector<MarketEvent> Market::process_market_buy_order(Order &order)
@@ -215,7 +238,7 @@ namespace MercEx
         if (order.price.has_value())
             throw std::invalid_argument("Market order should not have a price");
 
-        ProcessResult result;
+        std::vector<MarketEvent> events;
 
         for (auto price_it = sellbook.get_orders().begin(); price_it != sellbook.get_orders().end();)
         {
@@ -227,21 +250,20 @@ namespace MercEx
                 if (order.remaining <= 0)
                     break;
 
-                Order* match = *it;
+                Order *match = *it;
                 int trade_quantity = std::min(order.remaining, match->remaining);
                 order.remaining -= trade_quantity;
                 match->remaining -= trade_quantity;
 
                 update_last_price(price_it->first);
 
-                Trade trade(0, order.id, match->id, order.client_id, match->client_id, price_it->first, trade_quantity);
-                result.trades.push_back(trade);
+                events.push_back(MarketEvent::make_trade(order.id, match->id, price_it->first, trade_quantity));
 
                 if (match->remaining == 0)
                 {
                     match->status = OrderStatus::Filled;
                     match->book_it = {};
-                    result.removed_orders.push_back(match->id);
+                    events.push_back(MarketEvent::make_filled(match->id, match->symbol));
                     it = orders.erase(it);
                 }
                 else
@@ -267,10 +289,14 @@ namespace MercEx
         if (order.remaining > 0)
         {
             order.status = OrderStatus::PartiallyFilled;
-            return result;
+            return events;
         }
-        order.status = OrderStatus::Filled;
-        return result;
+        else if (order.remaining == 0)
+        {
+            order.status = OrderStatus::Filled;
+            events.push_back(MarketEvent::make_filled(order.id, order.symbol));
+        }
+        return events;
     }
 
     std::vector<MarketEvent> Market::process_market_sell_order(Order &order)
@@ -278,7 +304,7 @@ namespace MercEx
         if (order.price.has_value())
             throw std::invalid_argument("Market order should not have a price");
 
-        ProcessResult result;
+        std::vector<MarketEvent> events;
 
         for (auto price_it = buybook.get_orders().begin(); price_it != buybook.get_orders().end();)
         {
@@ -297,14 +323,13 @@ namespace MercEx
 
                 update_last_price(price_it->first);
 
-                Trade trade(0, order.id, match->id, order.client_id, match->client_id, price_it->first, trade_quantity);
-                result.trades.push_back(trade);
+                events.push_back(MarketEvent::make_trade(order.id, match->id, price_it->first, trade_quantity));
 
                 if (match->remaining == 0)
                 {
                     match->status = OrderStatus::Filled;
                     match->book_it = {};
-                    result.removed_orders.push_back(match->id);
+                    events.push_back(MarketEvent::make_filled(match->id, match->symbol));
                     it = orders.erase(it);
                 }
                 else
@@ -330,21 +355,25 @@ namespace MercEx
         if (order.remaining > 0)
         {
             order.status = OrderStatus::PartiallyFilled;
-            return result;
+            return events;
         }
-        order.status = OrderStatus::Filled;
-        return result;
+        else if (order.remaining == 0)
+        {
+            order.status = OrderStatus::Filled;
+            events.push_back(MarketEvent::make_filled(order.id, order.symbol));
+        }
+        return events;
     }
 
-    bool Market::cancel_order(Order* order)
+    bool Market::cancel_order(Order *order)
     {
-        if(order->type == OrderType::Market)
+        if (order->type == OrderType::Market)
             return true;
         bool success;
-        if(order->side==Side::Buy)
+        if (order->side == Side::Buy)
         {
-            success = buybook.cancel_order(order->id,order->price.value(),order->book_it);
-            if(!success)
+            success = buybook.cancel_order(order->id, order->price.value(), order->book_it);
+            if (!success)
                 return false;
             order->status = OrderStatus::Canceled;
             order->book_it = {};
@@ -352,8 +381,8 @@ namespace MercEx
         }
         else
         {
-            success = sellbook.cancel_order(order->id,order->price.value(),order->book_it);
-            if(!success)
+            success = sellbook.cancel_order(order->id, order->price.value(), order->book_it);
+            if (!success)
                 return false;
             order->status = OrderStatus::Canceled;
             order->book_it = {};
@@ -373,9 +402,10 @@ namespace MercEx
 
     void Market::print_order_books() const
     {
-        std::cout << "Buy Orders:\n";
+        std::cout << "printing Buy Orders:\n";
         for (const auto &[price, orders] : buybook.get_orders())
         {
+            std::cout << "Price: " << price << "\n";
             for (const auto &order : orders)
             {
                 std::cout << "Price: " << price << ", OrderID: " << order->id << ", Quantity: " << order->quantity << ", Remaining: " << order->remaining << "\n";
@@ -397,4 +427,5 @@ namespace MercEx
     std::optional<Price> Market::get_bid_price() const { return buybook.get_best_bid(); }
     std::optional<Price> Market::get_ask_price() const { return sellbook.get_best_ask(); }
 
+    MarketID Market::get_market_id() const { return market_id; }
 } // namespace MercEx
