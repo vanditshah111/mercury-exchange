@@ -1,53 +1,59 @@
 #include "../include/MarketProcessor.hpp"
 #include <iostream>
+#include <chrono>
 
 namespace MercEx
 {
-
     MarketProcessor::MarketProcessor(std::unique_ptr<Market> m)
-        : market(std::move(m)), running(true)
+        : market(std::move(m)) {}
+
+    MarketProcessor::~MarketProcessor()
     {
+        stop();
+        if (worker.joinable())
+            worker.join();
+    }
+
+    void MarketProcessor::start()
+    {
+        running.store(true, std::memory_order_release);
         worker = std::thread(&MarketProcessor::run, this);
-    }
-    MarketProcessor::~MarketProcessor() { stop(); }
-
-    void MarketProcessor::submit_event(const MarketEvent &ev)
-    {
-        {
-            std::lock_guard<std::mutex> lock(mtx);
-            queue.push_back(ev);
-        }
-        cv.notify_one();
-    }
-
-    void MarketProcessor::run()
-    {
-        while (true)
-        {
-            MarketEvent ev;
-            {
-                std::unique_lock<std::mutex> lock(mtx);
-                cv.wait(lock, [&]
-                        { return !queue.empty() || !running; });
-                if (!running && queue.empty())
-                    break;
-                ev = queue.front();
-                queue.pop_front();
-            }
-            handle_event(ev);
-        }
     }
 
     void MarketProcessor::stop()
     {
+        running.store(false, std::memory_order_release);
+    }
+
+    void MarketProcessor::submit_event(const MarketEvent &ev)
+    {
+        queue.enqueue(ev);
+    }
+
+    void MarketProcessor::run()
+    {
+        MarketEvent ev;
+        while (running.load(std::memory_order_acquire))
         {
-            std::lock_guard<std::mutex> lock(mtx);
-            running = false;
-        }
-        cv.notify_all();
-        if (worker.joinable())
-        {
-            worker.join();
+            if (queue.try_dequeue(ev))
+            {
+                try
+                {
+                    handle_event(ev);
+                }
+                catch (const std::exception &e)
+                {
+                    std::cerr << "[Worker Exception] " << e.what() << std::endl;
+                }
+                catch (...)
+                {
+                    std::cerr << "[Worker Exception] unknown" << std::endl;
+                }
+            }
+            else
+            {
+                std::this_thread::yield();
+            }
         }
     }
 
@@ -99,13 +105,15 @@ namespace MercEx
 
             Price prevltp = market->get_last_price().value_or(0.0);
             auto events = market->process_order(*ord_ptr);
+
             auto end = std::chrono::steady_clock::now();
             auto latency_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(end - submit_time).count();
 
-            // accumulate statistics
             total_latency_ns += latency_ns;
             processed_orders++;
+
             handle_market_events(events);
+
             if (market->get_last_price().value_or(0.0) != prevltp)
             {
                 check_stop_orders();
@@ -134,7 +142,7 @@ namespace MercEx
             return;
         Price ltp = *ltp_opt;
 
-        while (!stop_buy_orders_.empty() && market->get_last_price().value() >= stop_buy_orders_.begin()->first)
+        while (!stop_buy_orders_.empty() && ltp >= stop_buy_orders_.begin()->first)
         {
             auto price_level = stop_buy_orders_.begin();
             for (auto *ord : price_level->second)
@@ -146,7 +154,7 @@ namespace MercEx
             stop_buy_orders_.erase(price_level);
         }
 
-        while (!stop_sell_orders_.empty() && market->get_last_price().value() <= stop_sell_orders_.begin()->first)
+        while (!stop_sell_orders_.empty() && ltp <= stop_sell_orders_.begin()->first)
         {
             auto price_level = stop_sell_orders_.begin();
             for (auto *ord : price_level->second)
@@ -161,18 +169,8 @@ namespace MercEx
 
     void MarketProcessor::handle_market_events(const std::vector<MarketEvent> &events)
     {
-        // for (const auto &e : events)
-        // {
-        //     // std::cout << "Market Event: Type=" << static_cast<int>(e.type)
-        //     //           << ", OrderID=" << e.order_id
-        //     //           << ", Quantity=" << e.quantity
-        //     //           << ", Price=" << (e.price.has_value() ? std::to_string(*e.price) : "N/A")
-        //     //           << ", StopPrice=" << (e.stop_price.has_value() ? std::to_string(*e.stop_price) : "N/A")
-        //     //           << ", Side=" << static_cast<int>(e.side)
-        //     //           << ", ExecutedQty=" << (e.executed_qty.has_value() ? std::to_string(*e.executed_qty) : "N/A")
-        //     //           << ", ExecutedPrice=" << (e.executed_price.has_value() ? std::to_string(*e.executed_price) : "N/A")
-        //     //           << std::endl;
-        // }
+        // hook for logging, metrics, etc.
+        // disabled now for perf
     }
 
     Market &MarketProcessor::get_market()

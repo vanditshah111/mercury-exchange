@@ -41,21 +41,21 @@ namespace MercEx
                                     OrderType type = OrderType::Limit,
                                     TimeInForce tif = TimeInForce::Day)
         {
-            return {MarketEventType::AddOrder, Clock::now(), id, client_id, symbol, quantity, side,
+            return {MarketEventType::AddOrder, std::chrono::steady_clock::now(), id, client_id, symbol, quantity, side,
                     price, stop_price, type, tif,
                     std::nullopt, std::nullopt, std::nullopt};
         }
 
         static MarketEvent make_filled(OrderID id, const std::string &symbol)
         {
-            return {MarketEventType::FilledOrder, Clock::now(), id, 0, symbol, 0, Side::Buy,
+            return {MarketEventType::FilledOrder, std::chrono::steady_clock::now(), id, 0, symbol, 0, Side::Buy,
                     std::nullopt, std::nullopt, std::nullopt, std::nullopt,
                     std::nullopt, std::nullopt, std::nullopt};
         }
 
         static MarketEvent make_cancel(OrderID id, const std::string &symbol)
         {
-            return {MarketEventType::CancelOrder, Clock::now(), id, 0, symbol, 0, Side::Buy,
+            return {MarketEventType::CancelOrder, std::chrono::steady_clock::now(), id, 0, symbol, 0, Side::Buy,
                     std::nullopt, std::nullopt, std::nullopt, std::nullopt,
                     std::nullopt, std::nullopt, std::nullopt};
         }
@@ -63,7 +63,7 @@ namespace MercEx
         static MarketEvent make_trade(OrderID id, OrderID counterparty_id,
                                       Price trade_price, Quantity trade_qty)
         {
-            return {MarketEventType::Trade, Clock::now(), id, 0, "", 0, Side::Buy,
+            return {MarketEventType::Trade, std::chrono::steady_clock::now(), id, 0, "", 0, Side::Buy,
                     std::nullopt, std::nullopt, std::nullopt, std::nullopt,
                     counterparty_id, trade_price, trade_qty};
         }
@@ -74,7 +74,7 @@ namespace MercEx
                                                OrderType type = OrderType::Stop,
                                                TimeInForce tif = TimeInForce::Day)
         {
-            return {MarketEventType::StopTriggered, Clock::now(), id, client_id, symbol, quantity, side,
+            return {MarketEventType::StopTriggered, std::chrono::steady_clock::now(), id, client_id, symbol, quantity, side,
                     std::nullopt, stop_price, type, tif,
                     std::nullopt, std::nullopt, std::nullopt};
         }
