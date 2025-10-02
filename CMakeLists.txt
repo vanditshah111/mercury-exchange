@@ -38,3 +38,23 @@ target_link_libraries(test_deterministic PRIVATE mercury_core)
 
 add_executable(test_latency tests/test_latency.cpp)
 target_link_libraries(test_latency PRIVATE mercury_core)
+
+include(FetchContent)
+
+# Download and make gtest available
+FetchContent_Declare(
+  googletest
+  URL https://github.com/google/googletest/archive/refs/tags/v1.15.2.zip
+)
+# For Windows/MSVC avoid overriding runtime
+set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+FetchContent_MakeAvailable(googletest)
+
+enable_testing()
+
+# GoogleTest-based unit tests
+add_executable(test_gtest tests/test_matching_engine.cpp)
+target_link_libraries(test_gtest PRIVATE mercury_core GTest::gtest_main)
+
+include(GoogleTest)
+gtest_discover_tests(test_gtest)

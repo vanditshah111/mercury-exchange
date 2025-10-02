@@ -50,7 +50,7 @@ namespace MercEx
 
         if (order.type == OrderType::Limit)
         {
-            if (!order.price.has_value() )
+            if (!order.price.has_value() || !is_valid_price(order.price.value()))
                 throw std::invalid_argument("Invalid price for limit order");
 
             if (order.side == Side::Buy)
@@ -77,8 +77,8 @@ namespace MercEx
 
     std::vector<MarketEvent> Market::process_limit_buy_order(Order &order)
     {
-        if (!validate_fulfillment(order, Side::Buy) && order.tif == TimeInForce::FOK)
-            throw std::runtime_error("FOK order cannot be fulfilled");
+        if (order.tif == TimeInForce::FOK && !validate_fulfillment(order, Side::Buy))
+            return {};
 
         std::vector<MarketEvent> events;
 
@@ -153,8 +153,8 @@ namespace MercEx
     
     std::vector<MarketEvent> Market::process_limit_sell_order(Order &order)
     {
-        if (!validate_fulfillment(order, Side::Sell) && order.tif == TimeInForce::FOK)
-            throw std::runtime_error("FOK order cannot be fulfilled");
+        if (order.tif == TimeInForce::FOK && !validate_fulfillment(order, Side::Sell))
+            return {};
 
         std::vector<MarketEvent> events;
 
@@ -396,10 +396,9 @@ namespace MercEx
 
     void Market::print_order_books() const
     {
-        std::cout << "printing Buy Orders:\n";
+        std::cout << "Buy Orders:\n";
         for (const auto &[price, orders] : buybook.get_orders())
         {
-            std::cout << "Price: " << price << "\n";
             for (const auto &order : orders)
             {
                 std::cout << "Price: " << price << ", OrderID: " << order->id << ", Quantity: " << order->quantity << ", Remaining: " << order->remaining << "\n";

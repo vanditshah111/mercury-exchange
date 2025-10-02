@@ -52,7 +52,7 @@ namespace MercEx
             }
             else
             {
-                std::this_thread::yield();
+                std::this_thread::sleep_for(std::chrono::nanoseconds(100));
             }
         }
     }
