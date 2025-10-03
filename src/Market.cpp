@@ -51,8 +51,10 @@ namespace MercEx
         if (order.type == OrderType::Limit)
         {
             if (!order.price.has_value() || !is_valid_price(order.price.value()))
+            {
+                std::cout << "Invalid price for limit order: " << (order.price.has_value() ? std::to_string(order.price.value()) : "N/A") << std::endl;
                 throw std::invalid_argument("Invalid price for limit order");
-
+            }
             if (order.side == Side::Buy)
                 return process_limit_buy_order(order);
             else if (order.side == Side::Sell)

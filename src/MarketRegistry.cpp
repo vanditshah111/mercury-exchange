@@ -5,6 +5,8 @@
 namespace MercEx
 {
 
+    MarketRegistry::MarketRegistry(MarketDataPublisher& publisher) : publisher_(publisher) {}
+
     MarketProcessor &MarketRegistry::create_market(const std::string &symbol, double price_tick, uint16_t market_id)
     {
         if (processors_.find(symbol) != processors_.end())
@@ -13,7 +15,7 @@ namespace MercEx
         }
 
         auto market = std::make_unique<Market>(symbol, price_tick);
-        auto processor = std::make_unique<MarketProcessor>(std::move(market));
+        auto processor = std::make_unique<MarketProcessor>(std::move(market), publisher_);
         processors_[symbol] = std::move(processor);
         processors_[symbol]->start();
         return *processors_[symbol];
