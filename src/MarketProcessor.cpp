@@ -4,8 +4,8 @@
 
 namespace MercEx
 {
-    MarketProcessor::MarketProcessor(std::unique_ptr<Market> m)
-        : market(std::move(m)) {}
+    MarketProcessor::MarketProcessor(std::unique_ptr<Market> m, MarketDataPublisher& publisher)
+        : market(std::move(m)), publisher_(publisher) {}
 
     MarketProcessor::~MarketProcessor()
     {
@@ -59,7 +59,7 @@ namespace MercEx
 
     void MarketProcessor::handle_event(MarketEvent &ev)
     {
-        auto submit_time = std::chrono::steady_clock::now();
+        auto submit_time = ev.timestamp;
         switch (ev.type)
         {
         case MarketEventType::AddOrder:
@@ -169,8 +169,8 @@ namespace MercEx
 
     void MarketProcessor::handle_market_events(const std::vector<MarketEvent> &events)
     {
-        // hook for logging, metrics, etc.
-        // disabled now for perf
+        if(!events.empty())
+            publisher_.publish(events);
     }
 
     Market &MarketProcessor::get_market()

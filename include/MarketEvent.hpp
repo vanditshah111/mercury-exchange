@@ -2,7 +2,7 @@
 #include <cstdint>
 #include <optional>
 #include "Order.hpp"
-
+#include <iostream>
 namespace MercEx
 {
 
@@ -78,6 +78,55 @@ namespace MercEx
                     std::nullopt, stop_price, type, tif,
                     std::nullopt, std::nullopt, std::nullopt};
         }
-    };
 
-}
+        static void print_event(const MarketEvent &event)
+        {
+            switch (event.type)
+            {
+            case MarketEventType::AddOrder:
+                std::cout << "[EVENT] Add Order: ID=" << event.order_id
+                          << ", ClientID=" << event.client_id
+                          << ", Symbol=" << event.symbol
+                          << ", Qty=" << event.quantity
+                          << ", Side=" << to_string(event.side)
+                          << ", Price=" << (event.price ? std::to_string(*event.price) : "MKT")
+                          << ", StopPrice=" << (event.stop_price ? std::to_string(*event.stop_price) : "N/A")
+                          << ", Type=" << (event.order_type ? to_string(*event.order_type) : "N/A")
+                          << ", TIF=" << (event.tif ? to_string(*event.tif) : "N/A")
+                          << std::endl;
+                break;
+            case MarketEventType::FilledOrder:
+                std::cout << "[EVENT] Order Filled: ID=" << event.order_id
+                          << ", Symbol=" << event.symbol
+                          << std::endl;
+                break;
+            case MarketEventType::CancelOrder:
+                std::cout << "[EVENT] Order Canceled: ID=" << event.order_id
+                          << ", Symbol=" << event.symbol
+                          << std::endl;
+                break;
+            case MarketEventType::Trade:
+                std::cout << "[EVENT] Trade Executed: ID=" << event.order_id
+                          << ", CounterpartyID=" << (event.counterparty_id ? std::to_string(*event.counterparty_id) : "N/A")
+                          << ", Price=" << (event.executed_price ? std::to_string(*event.executed_price) : "N/A")
+                          << ", Qty=" << (event.executed_qty ? std::to_string(*event.executed_qty) : "N/A")
+                          << std::endl;
+                break;
+            case MarketEventType::StopTriggered:
+                std::cout << "[EVENT] Stop Triggered: ID=" << event.order_id
+                          << ", ClientID=" << event.client_id
+                          << ", Symbol=" << event.symbol
+                          << ", Qty=" << event.quantity
+                          << ", Side=" << to_string(event.side)
+                          << ", StopPrice=" << (event.stop_price ? std::to_string(*event.stop_price) : "N/A")
+                          << ", Type=" << (event.order_type ? to_string(*event.order_type) : "N/A")
+                          << ", TIF=" << (event.tif ? to_string(*event.tif) : "N/A")
+                          << std::endl;
+                break;
+            default:
+                std::cout << "[EVENT] Unknown event type" << std::endl;
+                break;
+            };
+        }
+    };
+};

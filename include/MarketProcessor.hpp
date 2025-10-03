@@ -2,6 +2,7 @@
 
 #include "Market.hpp"
 #include "MarketEvent.hpp"
+#include "MarketDataPublisher.hpp"
 #include <unordered_map>
 #include <list>
 #include <map>
@@ -9,14 +10,14 @@
 #include <thread>
 #include <atomic>
 #include <iostream>
-#include "concurrentqueue.h"  // moodycamel
+#include "concurrentqueue.h" 
 
 namespace MercEx
 {
     class MarketProcessor
     {
     public:
-        explicit MarketProcessor(std::unique_ptr<Market> m);
+        explicit MarketProcessor(std::unique_ptr<Market> m, MarketDataPublisher& publisher);
         ~MarketProcessor();
 
         void start();
@@ -52,5 +53,7 @@ namespace MercEx
 
         std::map<Price, std::list<Order *>, std::greater<>> stop_buy_orders_;
         std::map<Price, std::list<Order *>, std::less<>> stop_sell_orders_;
+
+        MarketDataPublisher& publisher_;
     };
 } // namespace MercEx

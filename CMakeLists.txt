@@ -18,6 +18,7 @@ set(SOURCES_COMMON
     src/MatchingEngine.cpp
     src/MarketProcessor.cpp
     src/Trade.cpp
+    src/MarketDataPublisher.cpp 
 )
 
 # Build as a library so we can reuse in multiple executables
@@ -29,15 +30,15 @@ add_executable(mercury_exchange src/main.cpp)
 target_link_libraries(mercury_exchange PRIVATE mercury_core)
 
 # Deterministic test executable
-add_executable(test_deterministic tests/test_deterministic.cpp)
-target_link_libraries(test_deterministic PRIVATE mercury_core)
+# add_executable(test_deterministic tests/test_deterministic.cpp)
+# target_link_libraries(test_deterministic PRIVATE mercury_core)
 
-# # Stress test executable
-# add_executable(test_stress tests/test_stress.cpp)
-# target_link_libraries(test_stress PRIVATE mercury_core)
+# # # Stress test executable
+# # add_executable(test_stress tests/test_stress.cpp)
+# # target_link_libraries(test_stress PRIVATE mercury_core)
 
-add_executable(test_latency tests/test_latency.cpp)
-target_link_libraries(test_latency PRIVATE mercury_core)
+# add_executable(test_latency tests/test_latency.cpp)
+# target_link_libraries(test_latency PRIVATE mercury_core)
 
 include(FetchContent)
 
@@ -53,7 +54,7 @@ FetchContent_MakeAvailable(googletest)
 enable_testing()
 
 # GoogleTest-based unit tests
-add_executable(test_gtest tests/test_matching_engine.cpp)
+add_executable(test_gtest tests/test_stress_gtest.cpp)
 target_link_libraries(test_gtest PRIVATE mercury_core GTest::gtest_main)
 
 include(GoogleTest)

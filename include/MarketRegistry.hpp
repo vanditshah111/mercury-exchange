@@ -8,6 +8,7 @@ namespace MercEx {
 
 class MarketRegistry {
 public:
+    explicit MarketRegistry(MarketDataPublisher& publisher);
     MarketProcessor& create_market(const std::string& symbol, double price_tick, uint16_t market_id);
     MarketProcessor* get_market_processor(const std::string& symbol);
     bool remove_market(const std::string& symbol);
@@ -15,6 +16,7 @@ public:
 
 private:
     std::unordered_map<std::string, std::unique_ptr<MarketProcessor>> processors_;
+    MarketDataPublisher& publisher_;
 };
 
 } // namespace MercEx
