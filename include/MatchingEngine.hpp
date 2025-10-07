@@ -29,9 +29,9 @@ namespace MercEx
     private:
         MarketRegistry &registry_;
 
-        std::unordered_map<uint16_t, std::atomic<uint64_t>> market_counters_;
+        std::unordered_map<MarketID, std::atomic<uint64_t>> market_counters_;
 
-        OrderID generate_order_id(uint16_t market_id);
+        OrderID generate_order_id(MarketID market_id);
     };
 
 } // namespace MercEx

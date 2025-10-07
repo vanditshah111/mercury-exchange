@@ -24,19 +24,7 @@ OrderID MatchingEngine::submit_order(ClientID client_id,
     MarketID market_id = processor->get_market_id();
     OrderID id = generate_order_id(market_id);
 
-    MarketEvent ev;
-    ev.type = MarketEventType::AddOrder;
-    ev.order_id = id;
-    ev.client_id = client_id;
-    ev.symbol = symbol;
-    ev.quantity = quantity;
-    ev.side = side;
-    ev.price = price;
-    ev.stop_price = stop_price;
-    ev.order_type = type;
-    ev.tif = tif;
-    ev.timestamp = std::chrono::steady_clock::now();
-
+    MarketEvent ev = MarketEvent::make_add(id, client_id, symbol, quantity, side, price, stop_price, type, tif);
     processor->submit_event(ev);
 
     return id;

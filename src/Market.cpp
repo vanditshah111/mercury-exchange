@@ -13,7 +13,10 @@ namespace MercEx
 
     bool Market::is_valid_price(double price) const
     {
-        return std::fmod(price * 100, price_tick * 100) == 0.0;
+        int64_t ticks = static_cast<int64_t>(std::round(price / price_tick));
+        double reconstructed = ticks * price_tick;
+        constexpr double EPS = 1e-8;
+        return std::abs(price - reconstructed) < EPS;
     }
 
     bool Market::validate_fulfillment(const Order &order, Side side)
@@ -152,7 +155,7 @@ namespace MercEx
         }
         return events;
     }
-    
+
     std::vector<MarketEvent> Market::process_limit_sell_order(Order &order)
     {
         if (order.tif == TimeInForce::FOK && !validate_fulfillment(order, Side::Sell))

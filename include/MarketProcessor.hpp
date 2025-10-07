@@ -29,6 +29,9 @@ namespace MercEx
 
         double get_average_latency_ms() const
         {
+            std::cout << "Total processed orders: " << processed_orders << std::endl;
+            std::cout << "Total latency (ns): " << total_latency_ns << std::endl;
+            std::cout << "Avg latency (ms):" << std::endl;
             if (processed_orders == 0)
                 return 0.0;
             return (total_latency_ns / 1e6) / processed_orders; // convert ns → ms
