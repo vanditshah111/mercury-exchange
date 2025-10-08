@@ -127,6 +127,37 @@ namespace MercEx
                 std::cout << "[EVENT] Unknown event type" << std::endl;
                 break;
             };
-        }
+        };
+
+        static std::string event_to_string(const MarketEvent &event)
+        {
+            std::string result;
+            switch (event.type)
+            {
+            case MarketEventType::AddOrder:
+                result = "[EVENT] Add Order: ID=" + std::to_string(event.order_id) + ", ClientID=" + std::to_string(event.client_id) + ", Symbol=" + event.symbol + ", Qty=" + std::to_string(event.quantity) + ", Side=" + to_string(event.side) + ", Price=" + (event.price ? std::to_string(*event.price) : "MKT") + ", StopPrice=" + (event.stop_price ? std::to_string(*event.stop_price) : "N/A") + ", Type=" + (event.order_type ? to_string(*event.order_type) : "N/A") + ", TIF=" + (event.tif ? to_string(*event.tif) : "N/A");
+                break;
+            case MarketEventType::FilledOrder:
+                result = "[EVENT] Order Filled: ID=" + std::to_string(event.order_id) + ", Symbol=" + event.symbol;
+                break;
+            case MarketEventType::CancelOrder:
+                result = "[EVENT] Order Canceled: ID=" + std::to_string(event.order_id) + ", Symbol=" + event.symbol;
+                break;
+            case MarketEventType::Trade:
+                std::cout << "[EVENT] Trade Executed: ID=" << event.order_id
+                          << ", CounterpartyID=" << (event.counterparty_id ? std::to_string(*event.counterparty_id) : "N/A")
+                          << ", Price=" << (event.executed_price ? std::to_string(*event.executed_price) : "N/A")
+                          << ", Qty=" << (event.executed_qty ? std::to_string(*event.executed_qty) : "N/A")
+                          << std::endl;
+                break;
+            case MarketEventType::StopTriggered:
+                result = "[EVENT] Stop Triggered: ID=" + std::to_string(event.order_id) + ", ClientID=" + std::to_string(event.client_id) + ", Symbol=" + event.symbol + ", Qty=" + std::to_string(event.quantity) + ", Side=" + to_string(event.side) + ", StopPrice=" + (event.stop_price ? std::to_string(*event.stop_price) : "N/A") + ", Type=" + (event.order_type ? to_string(*event.order_type) : "N/A") + ", TIF=" + (event.tif ? to_string(*event.tif) : "N/A");
+                break;
+            default:
+                std::cout << "[EVENT] Unknown event type" << std::endl;
+                break;
+            }
+            return result+ "\n";
+        };
     };
 };

@@ -1,15 +1,24 @@
 cmake_minimum_required(VERSION 3.14)
 project(MercuryExchange)
 
-# Use C++17
+# --- C++ Standard ---
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# Where to find header files
-include_directories(${PROJECT_SOURCE_DIR}/include)
+# --- Thread flag for non-Windows ---
+if(NOT WIN32)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthread")
+endif()
 
-# Core sources (excluding main/test drivers)
-set(SOURCES_COMMON
+# --- Find Boost headers and system library ---
+find_package(Boost 1.70 REQUIRED COMPONENTS system)
+
+# --- Include Project Headers ---
+include_directories(${PROJECT_SOURCE_DIR}/include)
+include_directories(${Boost_INCLUDE_DIRS})  # Add Boost headers
+
+# --- Core Library (no networking) ---
+set(SOURCES_CORE
     src/Order.cpp
     src/BuyBook.cpp
     src/SellBook.cpp
@@ -18,44 +27,39 @@ set(SOURCES_COMMON
     src/MatchingEngine.cpp
     src/MarketProcessor.cpp
     src/Trade.cpp
-    src/MarketDataPublisher.cpp 
+    src/MarketDataPublisher.cpp
 )
-
-# Build as a library so we can reuse in multiple executables
-add_library(mercury_core ${SOURCES_COMMON})
+add_library(mercury_core ${SOURCES_CORE})
 target_include_directories(mercury_core PUBLIC include)
 
-# CLI demo executable
-add_executable(mercury_exchange src/main.cpp)
-target_link_libraries(mercury_exchange PRIVATE mercury_core)
-
-# Deterministic test executable
-# add_executable(test_deterministic tests/test_deterministic.cpp)
-# target_link_libraries(test_deterministic PRIVATE mercury_core)
-
-# # # Stress test executable
-# # add_executable(test_stress tests/test_stress.cpp)
-# # target_link_libraries(test_stress PRIVATE mercury_core)
-
-# add_executable(test_latency tests/test_latency.cpp)
-# target_link_libraries(test_latency PRIVATE mercury_core)
-
-include(FetchContent)
-
-# Download and make gtest available
-FetchContent_Declare(
-  googletest
-  URL https://github.com/google/googletest/archive/refs/tags/v1.15.2.zip
+# --- Gateway Library (handles networking) ---
+set(SOURCES_GATEWAY
+    src/TCPServer.cpp
+    src/ClientSession.cpp
 )
-# For Windows/MSVC avoid overriding runtime
-set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
-FetchContent_MakeAvailable(googletest)
+add_library(mercury_gateway ${SOURCES_GATEWAY})
+target_include_directories(mercury_gateway PRIVATE include ${Boost_INCLUDE_DIRS})
+target_link_libraries(mercury_gateway PRIVATE
+    mercury_core
+    Boost::system
+)
+target_compile_definitions(mercury_gateway PRIVATE ASIO_STANDALONE)
 
-enable_testing()
+# Windows: link Winsock library
+if(WIN32)
+    target_link_libraries(mercury_gateway PRIVATE ws2_32)
+endif()
 
-# GoogleTest-based unit tests
-add_executable(test_gtest tests/test_stress_gtest.cpp)
-target_link_libraries(test_gtest PRIVATE mercury_core GTest::gtest_main)
+# --- Server Executable ---
+add_executable(exchange_server src/ExchangeServer.cpp)
+target_link_libraries(exchange_server PRIVATE mercury_gateway)
+set_target_properties(exchange_server PROPERTIES WIN32_EXECUTABLE FALSE)
 
-include(GoogleTest)
-gtest_discover_tests(test_gtest)
+# --- Client Executable ---
+add_executable(simple_client src/simple_client.cpp)
+target_include_directories(simple_client PRIVATE include ${Boost_INCLUDE_DIRS})
+target_link_libraries(simple_client PRIVATE Boost::system)
+target_compile_definitions(simple_client PRIVATE ASIO_STANDALONE)
+if(WIN32)
+    target_link_libraries(simple_client PRIVATE ws2_32)
+endif()
