@@ -33,10 +33,11 @@ OrderID MatchingEngine::submit_order(ClientID client_id,
 bool MatchingEngine::cancel_order(OrderID id, const std::string& symbol) {
     auto* processor = registry_.get_market_processor(symbol);
     if (!processor) return false;
-
+    std::cout<<"Requesting cancellation of order ID " << id << " in market " << symbol << std::endl;
     MarketEvent ev;
     ev.type = MarketEventType::CancelOrder;
     ev.order_id = id;
+    ev.symbol = symbol;
     ev.timestamp = std::chrono::steady_clock::now();
 
     processor->submit_event(ev);

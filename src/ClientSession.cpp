@@ -1,133 +1,139 @@
 #include "../include/ClientSession.hpp"
+#include "../include/GatewayProtocol.hpp" // <-- Include the new protocol
 
+// Constructor, destructor, and start() are unchanged.
 ClientSession::ClientSession(tcp::socket socket, MercEx::MatchingEngine &engine, MercEx::MarketDataPublisher &publisher)
     : socket_(std::move(socket)),
       engine_(engine),
       publisher_(publisher) {}
 
-ClientSession::~ClientSession()
-{
-    // In a real system, you would add a method to publisher_ to unsubscribe this session.
-    // For now, this is sufficient.
-    std::cout << "Client session destroyed." << std::endl;
-}
+ClientSession::~ClientSession() { std::cout << "Client session destroyed." << std::endl; }
 
 void ClientSession::start()
 {
-    std::cout << "Client session started." << std::endl;
-    // Subscribe to the publisher to receive market data updates.
+    socket_.set_option(boost::asio::ip::tcp::no_delay(true));
     publisher_.subscribe(this);
-    // Start the first async read from the client.
-    do_read();
+    do_read_header(); // Start by reading the fixed-size header
 }
 
-// This method is the entry point for data coming FROM the exchange TO the client.
 void ClientSession::on_market_events(const std::vector<MercEx::MarketEvent> &events)
 {
-    bool write_in_progress = !write_msgs_.empty();
-    for (const auto &event : events)
-    {
-        std::string msg = MercEx::MarketEvent::event_to_string(event);
-        std::cout << msg;
-        write_msgs_.push_back(msg);
-    }
+    auto self(shared_from_this());
+    boost::asio::post(socket_.get_executor(), [this, self, events]()
+                      {
+        bool write_in_progress = !write_msgs_.empty();
+        for (const auto &event : events) {
+            // Serialize events into binary format
+            if(event.type == MercEx::MarketEventType::AddOrder)
+            {
+                std::vector<char> buffer(sizeof(MercEx::Gateway::MessageHeader) + sizeof(MercEx::Gateway::NewOrderAck));
+                auto* header = reinterpret_cast<MercEx::Gateway::MessageHeader*>(buffer.data());
+                header->msg_type = MercEx::Gateway::MessageType::NewOrderAck;
+                header->msg_size = sizeof(MercEx::Gateway::NewOrderAck);
 
-    // If a write operation wasn't already in progress, start one.
-    if (!write_in_progress && !write_msgs_.empty())
-    {
-        do_write();
-    }
+                auto* req = reinterpret_cast<MercEx::Gateway::NewOrderAck*>(buffer.data() + sizeof(MercEx::Gateway::MessageHeader));
+                req->client_id = event.client_id;
+                req->cl_ord_id = event.order_id; // Echo back the order ID as client's original ID
+                req->order_id = event.order_id;
+                std::strncpy(req->symbol, event.symbol.c_str(), sizeof(req->symbol) - 1);
+                req->quantity = event.quantity;
+                req->price = event.price.value_or(0.0);
+                req->side = event.side;
+                req->order_type = event.order_type.value_or(MercEx::OrderType::Limit);
+                req->tif = event.tif.value_or(MercEx::TimeInForce::Day);
+                req->stop_price = event.stop_price.value_or(0.0);
+
+                write_msgs_.push_back(std::move(buffer));
+            }
+            else if (event.type == MercEx::MarketEventType::Trade) {
+                std::vector<char> buffer(sizeof(MercEx::Gateway::MessageHeader) + sizeof(MercEx::Gateway::TradeReport));
+                auto* header = reinterpret_cast<MercEx::Gateway::MessageHeader*>(buffer.data());
+                header->msg_type = MercEx::Gateway::MessageType::TradeReport;
+                header->msg_size = sizeof(MercEx::Gateway::TradeReport);
+
+                auto* report = reinterpret_cast<MercEx::Gateway::TradeReport*>(buffer.data() + sizeof(MercEx::Gateway::MessageHeader));
+                std::strncpy(report->symbol, event.symbol.c_str(), sizeof(report->symbol) - 1);
+                report->price = *event.executed_price;
+                report->quantity = *event.executed_qty;
+                write_msgs_.push_back(std::move(buffer));
+            }
+            // TODO: Handle serializing ExecutionReports for acks and fills
+        }
+
+        if (!write_in_progress) {
+            do_write();
+        } });
 }
 
-// Handles incoming data FROM the client TO the exchange.
-void ClientSession::do_read()
+// --- NEW BINARY READ LOGIC ---
+
+void ClientSession::do_read_header()
 {
     auto self(shared_from_this());
-    socket_.async_read_some(boost::asio::buffer(read_data_, max_length),
-                            [this, self](boost::system::error_code ec, std::size_t length)
+    boost::asio::async_read(socket_,
+                            boost::asio::buffer(&read_header_, sizeof(MercEx::Gateway::MessageHeader)),
+                            [this, self](boost::system::error_code ec, std::size_t /*length*/)
                             {
                                 if (!ec)
                                 {
-                                    std::string received_msg(read_data_, length);
-                                    std::cout << "Received from client: " << received_msg;
-
-                                    std::stringstream ss(received_msg);
-                                    std::string segment;
-                                    std::vector<std::string> segments;
-                                    while (std::getline(ss, segment, ','))
-                                    {
-                                        segments.push_back(segment);
-                                    }
-                                    if (segments.size() >= 5 && segments[0] == "Limit")
-                                    {
-                                        MercEx::OrderType order_type = MercEx::OrderType::Limit;
-                                        MercEx::Side side = (segments[1] == "BUY") ? MercEx::Side::Buy : MercEx::Side::Sell;
-                                        std::string symbol = segments[2];
-                                        int quantity = std::stoi(segments[3]);
-                                        double price = std::stod(segments[4]);
-                                        // For simplicity, we use a fixed order ID and TimeInForce here.
-                                        
-                                        engine_.submit_order(1, symbol, quantity, side, price, order_type, MercEx::TimeInForce::GTC);
-                                    }
-                                    else if (segments.size() >= 5 && segments[0] == "Market")
-                                    {
-                                        MercEx::OrderType order_type = MercEx::OrderType::Market;
-                                        MercEx::Side side = (segments[1] == "BUY") ? MercEx::Side::Buy : MercEx::Side::Sell;
-                                        std::string symbol = segments[2];
-                                        int quantity = std::stoi(segments[3]);
-                                        double price = std::stod(segments[4]);
-                                        engine_.submit_order(1, symbol, quantity, side, price, order_type, MercEx::TimeInForce::GTC);
-                                    }
-                                    else if(segments.size() >= 6 && segments[0] == "Stop")
-                                    {
-                                        MercEx::OrderType order_type = MercEx::OrderType::Stop;
-                                        MercEx::Side side = (segments[1] == "BUY") ? MercEx::Side::Buy : MercEx::Side::Sell;
-                                        std::string symbol = segments[2];
-                                        int quantity = std::stoi(segments[3]);
-                                        double stop_price = std::stod(segments[5]);
-                                        engine_.submit_order(1, symbol, quantity, side, std::nullopt, order_type, MercEx::TimeInForce::GTC, stop_price);
-                                    }
-                                    else if(segments.size() >= 5 && segments[0] == "StopLimit")
-                                    {
-                                        MercEx::OrderType order_type = MercEx::OrderType::StopLimit;
-                                        MercEx::Side side = (segments[1] == "BUY") ? MercEx::Side::Buy : MercEx::Side::Sell;
-                                        std::string symbol = segments[2];
-                                        int quantity = std::stoi(segments[3]);
-                                        double price = std::stod(segments[4]);
-                                        double stop_price = std::stod(segments[5]);
-                                        engine_.submit_order(1, symbol, quantity, side, price, order_type, MercEx::TimeInForce::GTC, stop_price);
-                                    }
-                                    else if (segments.size() >= 3 && segments[0] == "CANCEL")
-                                    {
-                                        std::string symbol = segments[1];
-                                        uint64_t order_id = std::stoull(segments[2]);
-                                        bool success = engine_.cancel_order(order_id, symbol);
-                                        if (!success)
-                                        {
-                                            std::cout << "Failed to cancel order ID " << order_id << " for symbol " << symbol << std::endl;
-                                        }
-                                    }
-                                    else
-                                    {
-                                        std::cout << "Unrecognized command from client." << std::endl;
-                                    }
-
-                                    // After processing, continue reading the next message from the client.
-                                    do_read();
-                                }
-                                else
-                                {
-                                    // If an error occurs (like a disconnect), the session will be destroyed.
+                                    // We've received the header, now read the body of the specified size
+                                    do_read_body();
                                 }
                             });
 }
 
-// Handles writing outgoing data TO the client.
+void ClientSession::do_read_body()
+{
+    read_body_.resize(read_header_.msg_size);
+    auto self(shared_from_this());
+    boost::asio::async_read(socket_,
+                            boost::asio::buffer(read_body_.data(), read_body_.size()),
+                            [this, self](boost::system::error_code ec, std::size_t /*length*/)
+                            {
+                                if (!ec)
+                                {
+                                    // Message fully received, now process it without any parsing
+                                    process_binary_message();
+                                    // Start reading the next message
+                                    do_read_header();
+                                }
+                            });
+}
+
+void ClientSession::process_binary_message()
+{
+    try
+    {
+        if (read_header_.msg_type == MercEx::Gateway::MessageType::NewOrderRequest)
+        {
+            const auto *req = reinterpret_cast<const MercEx::Gateway::NewOrderRequest *>(read_body_.data());
+
+            std::cout << "[Server] Received Binary NewOrderRequest for " << req->symbol << std::endl;
+
+            engine_.submit_order(
+                req->client_id,
+                req->symbol,
+                req->quantity,
+                req->side,
+                req->order_type == MercEx::OrderType::Market ? std::nullopt : std::optional<MercEx::Price>(req->price),
+                req->order_type,
+                req->tif,
+                req->stop_price == 0 ? std::nullopt : std::optional<MercEx::Price>(req->stop_price));
+        }
+    }
+    catch (const std::exception &e)
+    {
+        std::cerr << "Error processing binary message: " << e.what() << std::endl;
+    }
+}
+
 void ClientSession::do_write()
 {
+    if (write_msgs_.empty())
+        return;
     auto self(shared_from_this());
     boost::asio::async_write(socket_,
-                             boost::asio::buffer(write_msgs_.front().data(), write_msgs_.front().length()),
+                             boost::asio::buffer(write_msgs_.front().data(), write_msgs_.front().size()),
                              [this, self](boost::system::error_code ec, std::size_t /*length*/)
                              {
                                  if (!ec)
@@ -135,9 +141,14 @@ void ClientSession::do_write()
                                      write_msgs_.pop_front();
                                      if (!write_msgs_.empty())
                                      {
-                                         // Continue writing if there are more messages in the queue.
                                          do_write();
                                      }
+                                 }
+                                 else
+                                 {
+                                     // Handle disconnect or shutdown gracefully
+                                     std::cerr << "[ClientSession] Write error: " << ec.message() << std::endl;
+                                     write_msgs_.clear();
                                  }
                              });
 }

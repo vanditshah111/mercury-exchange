@@ -144,11 +144,10 @@ namespace MercEx
                 result = "[EVENT] Order Canceled: ID=" + std::to_string(event.order_id) + ", Symbol=" + event.symbol;
                 break;
             case MarketEventType::Trade:
-                std::cout << "[EVENT] Trade Executed: ID=" << event.order_id
-                          << ", CounterpartyID=" << (event.counterparty_id ? std::to_string(*event.counterparty_id) : "N/A")
-                          << ", Price=" << (event.executed_price ? std::to_string(*event.executed_price) : "N/A")
-                          << ", Qty=" << (event.executed_qty ? std::to_string(*event.executed_qty) : "N/A")
-                          << std::endl;
+                result = "[EVENT] Trade Executed: ID=" + std::to_string(event.order_id)
+                          + ", CounterpartyID=" + (event.counterparty_id ? std::to_string(*event.counterparty_id) : "N/A")
+                          + ", Price=" + (event.executed_price ? std::to_string(*event.executed_price) : "N/A")
+                          + ", Qty=" + (event.executed_qty ? std::to_string(*event.executed_qty) : "N/A");
                 break;
             case MarketEventType::StopTriggered:
                 result = "[EVENT] Stop Triggered: ID=" + std::to_string(event.order_id) + ", ClientID=" + std::to_string(event.client_id) + ", Symbol=" + event.symbol + ", Qty=" + std::to_string(event.quantity) + ", Side=" + to_string(event.side) + ", StopPrice=" + (event.stop_price ? std::to_string(*event.stop_price) : "N/A") + ", Type=" + (event.order_type ? to_string(*event.order_type) : "N/A") + ", TIF=" + (event.tif ? to_string(*event.tif) : "N/A");

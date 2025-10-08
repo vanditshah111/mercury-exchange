@@ -60,6 +60,9 @@ namespace MercEx
     void MarketProcessor::handle_event(MarketEvent &ev)
     {
         auto submit_time = ev.timestamp;
+
+        handle_market_events({ev});
+        
         switch (ev.type)
         {
         case MarketEventType::AddOrder:

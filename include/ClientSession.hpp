@@ -2,10 +2,12 @@
 #include "MatchingEngine.hpp"
 #include "MarketDataPublisher.hpp"
 #include "IMarketDataListener.hpp"
+#include "GatewayProtocol.hpp" // <-- Add this
 #include <boost/asio.hpp>
 #include <memory>
 #include <deque>
 #include <string>
+#include <vector> // <-- Add this
 #include <iostream>
 
 using boost::asio::ip::tcp;
@@ -16,21 +18,22 @@ public:
     ~ClientSession();
 
     void start();
-
-    // This method is called by the MarketDataPublisher's thread
     void on_market_events(const std::vector<MercEx::MarketEvent>& events) override;
 
 private:
-    void do_read();
+    void do_read_header();
+    void do_read_body();
+    void process_binary_message();
     void do_write();
 
     tcp::socket socket_;
     MercEx::MatchingEngine& engine_;
     MercEx::MarketDataPublisher& publisher_;
 
-    enum { max_length = 1024 };
-    char read_data_[max_length];
+    // Buffers for binary reading
+    MercEx::Gateway::MessageHeader read_header_;
+    std::vector<char> read_body_;
 
-    // A thread-safe queue for outgoing messages
-    std::deque<std::string> write_msgs_;
+    // Queue for binary writing
+    std::deque<std::vector<char>> write_msgs_;
 };
