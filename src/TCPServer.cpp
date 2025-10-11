@@ -16,10 +16,8 @@ void TCPServer::do_accept() {
         [this](boost::system::error_code ec, tcp::socket socket) {
             if (!ec) {
                 std::cout << "Accepted new client connection." << std::endl;
-                // Create a session and pass it all the exchange components it needs.
                 std::make_shared<ClientSession>(std::move(socket), engine_, publisher_)->start();
             }
-            // Continue listening for the next connection.
             do_accept();
         });
 }

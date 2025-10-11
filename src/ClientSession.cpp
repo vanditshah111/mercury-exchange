@@ -1,7 +1,6 @@
 #include "../include/ClientSession.hpp"
-#include "../include/GatewayProtocol.hpp" // <-- Include the new protocol
+#include "../include/GatewayProtocol.hpp" 
 
-// Constructor, destructor, and start() are unchanged.
 ClientSession::ClientSession(tcp::socket socket, MercEx::MatchingEngine &engine, MercEx::MarketDataPublisher &publisher)
     : socket_(std::move(socket)),
       engine_(engine),
@@ -13,7 +12,7 @@ void ClientSession::start()
 {
     socket_.set_option(boost::asio::ip::tcp::no_delay(true));
     publisher_.subscribe(this);
-    do_read_header(); // Start by reading the fixed-size header
+    do_read_header(); 
 }
 
 void ClientSession::on_market_events(const std::vector<MercEx::MarketEvent> &events)
@@ -23,7 +22,7 @@ void ClientSession::on_market_events(const std::vector<MercEx::MarketEvent> &eve
                       {
         bool write_in_progress = !write_msgs_.empty();
         for (const auto &event : events) {
-            // Serialize events into binary format
+
             if(event.type == MercEx::MarketEventType::AddOrder)
             {
                 std::vector<char> buffer(sizeof(MercEx::Gateway::MessageHeader) + sizeof(MercEx::Gateway::NewOrderAck));
@@ -33,7 +32,7 @@ void ClientSession::on_market_events(const std::vector<MercEx::MarketEvent> &eve
 
                 auto* req = reinterpret_cast<MercEx::Gateway::NewOrderAck*>(buffer.data() + sizeof(MercEx::Gateway::MessageHeader));
                 req->client_id = event.client_id;
-                req->cl_ord_id = event.order_id; // Echo back the order ID as client's original ID
+                req->cl_ord_id = event.order_id;
                 req->order_id = event.order_id;
                 std::strncpy(req->symbol, event.symbol.c_str(), sizeof(req->symbol) - 1);
                 req->quantity = event.quantity;
@@ -57,15 +56,12 @@ void ClientSession::on_market_events(const std::vector<MercEx::MarketEvent> &eve
                 report->quantity = *event.executed_qty;
                 write_msgs_.push_back(std::move(buffer));
             }
-            // TODO: Handle serializing ExecutionReports for acks and fills
         }
 
         if (!write_in_progress) {
             do_write();
         } });
 }
-
-// --- NEW BINARY READ LOGIC ---
 
 void ClientSession::do_read_header()
 {
@@ -76,7 +72,6 @@ void ClientSession::do_read_header()
                             {
                                 if (!ec)
                                 {
-                                    // We've received the header, now read the body of the specified size
                                     do_read_body();
                                 }
                             });
@@ -92,9 +87,7 @@ void ClientSession::do_read_body()
                             {
                                 if (!ec)
                                 {
-                                    // Message fully received, now process it without any parsing
                                     process_binary_message();
-                                    // Start reading the next message
                                     do_read_header();
                                 }
                             });
@@ -146,7 +139,6 @@ void ClientSession::do_write()
                                  }
                                  else
                                  {
-                                     // Handle disconnect or shutdown gracefully
                                      std::cerr << "[ClientSession] Write error: " << ec.message() << std::endl;
                                      write_msgs_.clear();
                                  }

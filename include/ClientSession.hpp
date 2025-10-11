@@ -2,12 +2,12 @@
 #include "MatchingEngine.hpp"
 #include "MarketDataPublisher.hpp"
 #include "IMarketDataListener.hpp"
-#include "GatewayProtocol.hpp" // <-- Add this
+#include "GatewayProtocol.hpp" 
 #include <boost/asio.hpp>
 #include <memory>
 #include <deque>
 #include <string>
-#include <vector> // <-- Add this
+#include <vector>
 #include <iostream>
 
 using boost::asio::ip::tcp;
@@ -30,10 +30,8 @@ private:
     MercEx::MatchingEngine& engine_;
     MercEx::MarketDataPublisher& publisher_;
 
-    // Buffers for binary reading
     MercEx::Gateway::MessageHeader read_header_;
     std::vector<char> read_body_;
 
-    // Queue for binary writing
     std::deque<std::vector<char>> write_msgs_;
 };
